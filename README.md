@@ -518,7 +518,7 @@ ContextProvider        build_packet/invalidate/verify_freshness   (Trailblazer a
 VerificationRunner     run_checks/verify_locked_probes/collect_results
 PolicyEngine           authorize_transition/authorize_change
 ApprovalGateway        request_decision/record_decision
-HostPlugin             exchange_contract/exchange_decision/exchange_uat
+HostPlugin             exchange_contract/exchange_decision/exchange_uat/exchange_status
 EventPublisher         publish_reconcile_hint
 ```
 
@@ -529,6 +529,10 @@ Use typed request/response contracts, stable IDs, version fields, idempotency ke
 **Worker adapters:** local model roles use bounded execution adapters backed by their role-qualified local endpoints. The Engineer's tool and execution adapter is selected from existing owned capabilities during discovery, with `MinimalEngineerAdapter` as the bounded fallback (§2.2); the runner owns the attempt workspace, deadline, permissions, cancellation, and evidence capture. Analyst, Verifier, and an escalated Diagnostician may call their separately assigned model directly where no tool loop is needed (§11). Deterministic integration and failure classification need no model. No local worker role depends on a host plugin.
 
 **Client/harness integrations:** `HostPlugin` is a versioned packet-exchange port for intent refinement, contract authoring, architectural decisions, and UAT. Implement Claude Code and Codex plugins first, then OpenCode, VS Code, and other clients as their extension interfaces permit; ChatGPT can participate through a compatible integration. The host is distinct from the model and its assigned role. Every plugin exchanges the same typed contracts, decision packets, decisions, and delivery evidence, without owning execution or work state. `HostPlugin` handles transport; `ApprovalGateway` records decisions and `PolicyEngine` enforces their authority. Model capability and authority are independent of the client/harness. VORTEX remains an available transport under the same contract, audit, permission, and evidence rules. Host integrations are optional to autonomous local operation, which must work without any host client installed or connected.
+
+**Caller status updates:** The host plugin must regularly update the caller with the current status while delegated work is running, and directly notify the originating conversation on completion, failure, or a required decision. Include the sender, work ID, current stage, and a reference to the evidence; use recorded state rather than the worker's unsupported claims. Direct notifications should let the caller respond without waiting for a periodic check, where the host supports that delivery route.
+
+Example, following Trailblazer's direct notification to Codex: “From Resonant: package X is ready for review. Compilation passed; the checkpoint and test results are saved with the linked evidence. No integration or push occurred.”
 
 **Initial interface:** usable CLI plus a simple Kanban view, preferably Phoenix LiveView if already efficient in the chosen Elixir project structure. UI is a projection of the ledger, not another authority. Show project/milestone state, task state, assigned role, remaining time, latest evidence, blocker/exception, and approval actions.
 
