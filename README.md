@@ -129,7 +129,7 @@ The delivery manager makes judgments. It is **not** the scheduler, persistence e
 
 Single-host, local-first deployment initially; multiple hosts and model backends later. Elixir/OTP is the long-lived coordinator. External model runtimes and native-risk engines operate as supervised subprocesses or services with explicit health checks. Do not assume BEAM supervision alone handles grandchildren or OS process trees; the runner must implement reliable subprocess-tree termination. Recommended default on Linux: launch each worker in its own cgroup (e.g. `systemd-run --user --scope`) and kill the cgroup. This catches descendants that escape the process group via `setsid`, and provides memory/CPU limits in the same mechanism.
 
-**Compute budget is a first-class design input.** Inference capacity on the host determines how many models can stay resident, whether role switches cost a model reload, and whether parallel worktrees help at all. The Day 1 ADR records the actual budget; until then, design for one resident model serving multiple roles via prompts, with mechanical checks as the primary gate.
+**Compute budget is a first-class design input.** Inference capacity on the host determines how many models can stay resident, whether role switches cost a model reload, and whether parallel worktrees help at all. Preserve the current screened allocation as the starting point: Spark for coding on its CPU serving path and Bolt for bounded planning decisions on its separate iGPU serving path (§11). The Day 1 ADR records that deployment and its actual resource budget; measure contention before changing placement or concurrency, with mechanical checks as the primary gate.
 
 Keep transport stable and versioned (JSON over local HTTP, Unix socket, or stdio, selected by implementation assessment). Prefer a simple, documented API over elaborate distributed messaging during week one.
 
@@ -550,6 +550,15 @@ Use typed request/response contracts, stable IDs, version fields, idempotency ke
 ## 11. Model Selection, Quality Metrics, and Economics
 
 Choose models based on performance **in the role and environment**, not leaderboard score alone. Maintain a capability registry with benchmark tasks, context constraints, available RAM/VRAM, median execution time, reviewer pass rate, regression rate, failure categories, and measured local compute costs. Preserve model versions and prompt templates with results.
+
+**Initial model assignments are already selected.** Retain the operator-screened Spark and Bolt models in roles similar to their current assignments; do not restart model selection as part of this architecture change.
+
+| Model / current configured alias | Initial Resonant role |
+|---|---|
+| Spark-X2.6-4B / `spark-x2.6-4b:q8-dspark` | Engineer: local coding and implementation work. |
+| Nemotron-3.5-Bolt-E4B / `nemotron-3.5-bolt-e4b:q4` | Local PM support: prioritization, task selection, and bounded routing decisions. This does not establish capability for unrestricted decomposition or architectural planning. |
+
+Carry forward the existing screening evidence and preserve the current quantization, draft-model, runtime, sampling, and resource settings in versioned deployment records. Trailblazer's `config.ex`, `docs/design.md` §7.2, and `docs/local-planner.md` identify the current baseline; verify configuration provenance during discovery without starting a new model audition. Validate the new adapter and end-to-end integration against this baseline. Extend role assignments or consider replacements only for a demonstrated capability gap, measured regression, or material deployment change. Frontier-led planning and final human acceptance retain their existing boundaries; independent verification remains required regardless of model choice.
 
 Key outcome metrics:
 
