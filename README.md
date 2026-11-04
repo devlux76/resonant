@@ -7,7 +7,7 @@
 **Target:** Once the design is accepted, deliver a working vertical slice within seven calendar days; establish the correct long-term architecture from day one.  
 **Naming:** *SMART Resonance* is the product; *Resonant* is the codebase and service name.
 
-> **Governing instruction:** This is a **greenfield architecture**, not a refactor of the current organically evolved agent system. But it is **not a greenfield codebase**: we own most of the components it needs (Trailblazer, scout/ranger, the planner, the OpenCode fork, the VORTEX peer bridge). Those are **adapted and specialized behind Resonant's ports, not reimplemented.** What we do not inherit is their coupling, data model, or control flow where it conflicts with this design. Optimize for the strongest useful deliverable within the week, **without sacrificing the future architecture to achieve a demo**.
+> **Governing instruction:** This is a **greenfield architecture**, not a refactor of the current organically evolved agent system. But it is **not a greenfield codebase**: we own most of the components it needs (Trailblazer, scout/ranger, the planner, the VORTEX peer bridge). Those are **adapted and specialized behind Resonant's ports, not reimplemented.** Client/harness integrations use one generic host-plugin interface, with Claude Code and Codex first, then OpenCode, VS Code, and other clients where their extension interfaces permit. A host plugin connects top-level planning, decisions, and UAT; it is not the local execution architecture. What we do not inherit is existing coupling, data models, or control flow where they conflict with this design. Optimize for the strongest useful deliverable within the week, **without sacrificing the future architecture to achieve a demo**.
 
 ---
 
@@ -61,10 +61,14 @@ We own the code below. The default is **adapt and specialize**, not "evaluate an
 | **scout / ranger** | **Adapt** as the Analyst's reconnaissance tools (fast retrieval, then local-model verification of locations). |
 | Trailblazer's **file watcher** | **Adapt** as a reconcile *hint source* only, never a completion detector. |
 | **Planner** (over git-bug) | **Logic donor and integration adapter.** Resonant's ledger owns work state; git-bug stays a sync/export surface so existing workflows and the commit-message rule keep working. |
-| **OpenCode fork** | **Adapt** as the primary Engineer harness: one `opencode run` subprocess per attempt, in the attempt's worktree, under the runner's deadline. |
+| **Host plugins** | **Provision plugins behind the generic `HostPlugin` port** for contract, decision, and UAT packet exchange. Initial targets: Claude Code and Codex; later targets: OpenCode, VS Code, and other clients. Client/harness choice grants no execution or acceptance authority and introduces no delivery dependency. |
 | **VORTEX** (Claude/Codex peer bridge) | **Adapt** as the frontier channel: decision packets, contract authoring, cross-review, UAT. Governed like any worker, under the same contract, audit, and evidence rules; never on the autonomous local path. |
 
 Exact paths, versions, and protocols are verified during Day 1 discovery, not assumed from this table.
+
+The local Engineer execution adapter is selected during discovery from existing owned execution capabilities, including Trailblazer's worktree, check, artifact, and integration machinery. Adapt useful capabilities behind Resonant's contracts without retaining a competing orchestration authority. Trailblazer's reused machinery may produce artifacts and evidence, but cannot retain completion, verification, acceptance, or work-status authority: Resonant's control plane applies independent verifier evidence and authorized decisions to its ledger. This selection does not depend on a host plugin.
+
+**Named fallback: `MinimalEngineerAdapter`.** If discovery has not established a suitable owned execution adapter by the end of Day 1, select this fallback in an ADR: a minimal in-tree tool loop against the local llama.cpp-compatible endpoint, supporting worktree-scoped read/search/edit and policy-authorized commands. It uses Resonant's runner for its cgroup, deadline, permissions, and evidence capture; it adds no scheduler, retry policy, ledger, or acceptance authority. Reuse compatible tool primitives where available. Activating the fallback requires revisiting the seven-day forecast against its implementation and verification work.
 
 ### 2.3 Non-negotiable invariants
 
@@ -159,7 +163,7 @@ Roles are **capability contracts**, not personalities or permanently running pro
 
 Use a **hybrid/adaptive process**, not a mandatory sequential waterfall. Within a package, specialists may iterate, but every attempt has explicit bounds and every accepted state is evidence-based.
 
-**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect (via VORTEX) or the Designer role writes charters and contracts; the local PM handles sequencing and exceptions. The local PM takes over decomposition for a task class once its own calibration record (§4.5) shows its contracts are accepted and fulfilled at a rate comparable to frontier-written ones.
+**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect (through a supported frontier-facing integration) or the Designer role writes charters and contracts; the local PM handles sequencing and exceptions. The local PM takes over decomposition for a task class once its own calibration record (§4.5) shows its contracts are accepted and fulfilled at a rate comparable to frontier-written ones.
 
 ### 4.2 Management by exception
 
@@ -512,6 +516,7 @@ ContextProvider        build_packet/invalidate/verify_freshness   (Trailblazer a
 VerificationRunner     run_checks/verify_locked_probes/collect_results
 PolicyEngine           authorize_transition/authorize_change
 ApprovalGateway        request_decision/record_decision
+HostPlugin             exchange_contract/exchange_decision/exchange_uat
 EventPublisher         publish_reconcile_hint
 ```
 
@@ -519,7 +524,9 @@ Embedding, vector, graph, and parsing concerns are behind `ContextProvider` insi
 
 Use typed request/response contracts, stable IDs, version fields, idempotency keys, and explicit error types. Internal ports need not be remote services. Build a modular monolith first, with **separately supervised external workers** where needed; don't preemptively create dozens of services.
 
-**Worker adapters:** the Engineer runs as an OpenCode-fork subprocess (`opencode run`) per attempt, backed by local llama.cpp-compatible endpoints. Analyst, Verifier, and Diagnostician may call the local model directly where no tool loop is needed. VORTEX carries frontier work (Claude/Codex) under the same contract, audit, permission, and evidence rules; it is an optional acceleration path, **not a dependency of autonomous local operation**.
+**Worker adapters:** local specialists use bounded execution adapters backed by local model endpoints. The Engineer's tool and execution adapter is selected from existing owned capabilities during discovery, with `MinimalEngineerAdapter` as the bounded fallback (§2.2); the runner owns the attempt workspace, deadline, permissions, cancellation, and evidence capture. Analyst, Verifier, and Diagnostician may call the local model directly where no tool loop is needed. No local worker role depends on a host plugin.
+
+**Client/harness integrations:** `HostPlugin` is a versioned packet-exchange port for intent refinement, contract authoring, architectural decisions, and UAT. Implement Claude Code and Codex plugins first, then OpenCode, VS Code, and other clients as their extension interfaces permit; ChatGPT can participate through a compatible integration. The host is distinct from the model and its assigned role. Every plugin exchanges the same typed contracts, decision packets, decisions, and delivery evidence, without owning execution or work state. `HostPlugin` handles transport; `ApprovalGateway` records decisions and `PolicyEngine` enforces their authority. Model capability and authority are independent of the client/harness. VORTEX remains an available transport under the same contract, audit, permission, and evidence rules. Host integrations are optional to autonomous local operation, which must work without any host client installed or connected.
 
 **Initial interface:** usable CLI plus a simple Kanban view, preferably Phoenix LiveView if already efficient in the chosen Elixir project structure. UI is a projection of the ledger, not another authority. Show project/milestone state, task state, assigned role, remaining time, latest evidence, blocker/exception, and approval actions.
 
@@ -554,7 +561,7 @@ Key outcome metrics:
 - Unplanned human/frontier escalations and approval latency;
 - UAT defects and traceability completeness;
 - Calibration error and overclaim rate per model/role/task class, and whether showing the track record before assessment reduces them over time;
-- End-to-end comparison with a single local coding agent on the same tasks. This baseline is captured from the **first** real run, not saved for Day 7: if `opencode run` plus locked probes in a worktree delivers most of the value, that should reshape priorities early.
+- End-to-end comparison with a single local coding agent on the same tasks. This baseline is captured from the **first** real run, not saved for Day 7: if one local worker plus locked probes in a worktree delivers most of the value, that should reshape priorities early. The baseline does not prescribe a worker runtime for Resonant.
 
 The optimization target is **reliable delivered outcomes**, not token volume, number of agents, or a permanently busy GPU.
 
@@ -564,13 +571,13 @@ The optimization target is **reliable delivered outcomes**, not token volume, nu
 
 **Definition of week-one success:** A person can point Resonant at an existing Git repository, provide a Markdown feature/bug specification, review a generated charter and SMART work package, execute a bounded local coding task, observe real file changes and a runner exit, see independent verification, recover from timeout/crash, integrate an approved patch, and export a traceable UAT packet. This must work without Claude, Codex, OpenRouter, or any paid API.
 
-The plan is sequenced by risk and vertical completeness. Adjust daily based on actual observations. Avoid broad parallel development until the state/contract schemas are fixed. The week is feasible **because** context (Trailblazer), the engineer harness (OpenCode fork), and the frontier channel (VORTEX) are adapted, not built; most new code is the OTP application itself, the ledger, state machines, runner/reconciler, assessment/calibration, and gates.
+The plan is sequenced by risk and vertical completeness. Adjust daily based on actual observations. Avoid broad parallel development until the state/contract schemas are fixed. Context (Trailblazer), existing local execution capabilities, and the frontier channel (VORTEX) are adaptation candidates; discovery must establish how much execution machinery can actually be reused. Host plugins do not implement local execution. New work includes the OTP application itself, the ledger, state machines, runner/reconciler, assessment/calibration, and gates. The seven-day target remains conditional on the selected local execution adapter and demonstrated reuse; activate the named fallback (§2.2) and revise the forecast if no suitable owned adapter is established by the end of Day 1.
 
 | Day | Primary outcome | Demonstrable acceptance |
 |---|---|---|
-| **1** | Discovery of owned components; ADRs (ledger, runner isolation, compute budget); project skeleton; ledger with package + attempt state machines | Transition tests for both machines; state survives restart |
+| **1** | Discovery of owned components; ADRs (ledger, local execution adapter or named fallback, runner isolation, compute budget); project skeleton; ledger with package + attempt state machines | Transition tests for both machines; state survives restart; local execution path selected independently of host plugins by end of day |
 | **2** | Worktree lifecycle; cgroup-based runner with hard timeouts; reconciliation on every exit path; observability | Timeout kills the whole tree; exit never auto-accepts; silent/no-op/crash exits reconcile correctly |
-| **3** | Contract intake with locked probes; Trailblazer `ContextProvider` adapter with revision stamps; OpenCode engineer adapter; first real run | Local worker modifies an isolated worktree from revision-grounded context; **single-agent baseline captured** |
+| **3** | Contract intake with locked probes; Trailblazer `ContextProvider` adapter with revision stamps; selected local Engineer execution adapter; first real run | Local worker modifies an isolated worktree from revision-grounded context without a frontier client; **single-agent baseline captured** |
 | **4** | Assess → commit protocol (Ready/Decompose/Clarify/Decline + timebox-only counter); calibration store and pre-assessment summary; deterministic verification + independent reviewer | Bounded assessment; counters can't touch acceptance; failed task cannot self-close |
 | **5** | Diagnosis/postmortem states; PM exception handler; CLI Kanban; integration gate | PM invoked only on exceptions; accepted patch integrates with regression evidence |
 | **6** | UAT export, approval tiers (CLI `decide`), restart recovery, multi-task dependency test | End-to-end offline run; recovery without duplicate work or fabricated success |
@@ -595,7 +602,7 @@ The plan is sequenced by risk and vertical completeness. Adjust daily based on a
 - Phoenix LiveView board with risk/milestone insights.
 - Trailblazer adaptations beyond the minimum (richer staleness signals, test-to-code links) as Resonant usage reveals gaps.
 - Additional graph/work-trace links, stronger risk scoring, more comprehensive metrics.
-- VORTEX-backed Claude/Codex collaborative worker adapter.
+- Generic `HostPlugin` implementations: Claude Code and Codex first, then OpenCode, VS Code, and other clients; VORTEX is an available transport. Plugins exchange contracts, material decisions, and UAT packets without becoming local execution dependencies.
 - Approach counterproposals (week one allows timebox-only counters).
 - Local PM taking over decomposition for task classes where its calibration record supports it (§4.1).
 
@@ -633,6 +640,7 @@ Implement these as automated integration tests where practical, plus a clearly d
 17. **Unassessed path:** model returns an unparseable assessment; package proceeds as `unassessed` and calibration records the gap.
 18. **Calibration loop:** a confident (≥ threshold) commitment that fails verification is recorded as an overclaim, and the next assessment prompt for that actor/task class shows the updated record.
 19. **Double decline:** two eligible models decline; package escalates to the contract author rather than trying a third.
+20. **Host independence and plugin parity:** the local delivery path works without any host client installed or connected. Every configured `HostPlugin` passes the same versioned contract/decision/UAT exchange and authority tests, without owning worker execution or ledger transitions.
 
 **Gate:** The product is not "done" just because these cases have stories or UI mockups. Show tests, actual logs, and a reproducible demonstration.
 
@@ -676,7 +684,7 @@ Do not force an umbrella app for a small codebase, but do not collapse modules i
 
 ### First actions
 
-1. Inspect the owned components listed in §2.2 (Trailblazer, scout/ranger, planner, OpenCode fork, VORTEX) and confirm their current paths, versions, and protocols. **Do not assume** a component behaves as described here without inspection.
+1. Inspect the owned delivery components listed in §2.2 (Trailblazer, scout/ranger, planner, VORTEX) and confirm their current paths, versions, and protocols. Select the local execution adapter from existing capabilities or activate the named fallback by the end of Day 1. Separately inspect the initial clients' extension interfaces for the generic `HostPlugin` port. **Do not assume** a component behaves as described here without inspection.
 2. Create a concise `REUSE_DECISIONS.md` recording, per component, the adaptations Resonant needs (default: adapt; replace only with an ADR).
 3. Produce an architecture ADR for the canonical work ledger, graph backend, runner isolation, and model adapter protocol. Confirm decisions against actual runtime/library compatibility.
 4. Establish the schemas, state machine, and cross-component contracts *before* implementing parallel features.
@@ -717,12 +725,12 @@ The implementors should select reasonable defaults and record short ADRs for the
 1. **Canonical ledger implementation:** SQLite schema (state tables + same-transaction audit log) and migration tooling.
 2. **Git-bug:** sync/export depth with the planner (the global commit-message rule already depends on it).
 3. **Compute budget:** resident models, role-switch cost, realistic concurrency on the host.
-4. **Model execution protocol:** OpenCode-fork invocation, role prompts, assessment prompt, and prefix-cache reuse between assessment and execution.
+4. **Model execution protocol:** selected local worker tool/execution adapter or `MinimalEngineerAdapter` fallback, role prompts, assessment prompt, and prefix-cache reuse between assessment and execution. Host plugins are outside this execution decision.
 5. **Sandboxing:** cgroup-per-worker via `systemd-run --user --scope` versus a container runner; must guarantee whole-tree kill.
 6. **Calibration parameters:** task-class taxonomy, confidence threshold for "confident," minimum `n` before showing numbers, decay of old records.
 7. **UI:** CLI-only versus minimal LiveView during initial hardening.
 8. **Parallelism:** begin conservatively; increase only with worktree conflict management and measured compute headroom.
-9. **VORTEX as worker:** representing Claude/Codex collaboration as a governed worker without bypassing local-only guarantees.
+9. **Host plugin protocol:** versioned contract/decision/UAT exchange, initial client extension interfaces, and optional VORTEX transport, without bypassing authority checks or local-only guarantees.
 
 Graph backend and vector strategy are no longer Resonant decisions; they belong to Trailblazer (§6.3).
 
