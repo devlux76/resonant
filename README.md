@@ -49,7 +49,7 @@ Intent → Charter → Reconnaissance → Work packages → Assess & commit → 
 
 The future system, not the current implementation, defines the module boundaries. The first-week product should be the smallest complete enactment of that architecture: one real project, one real spec, one real task, one supervised local worker, one bounded attempt, one observed diff, one independent gate, one integration path, and one UAT packet.
 
-**Do not** build a disposable mock workflow, an isolated swarm proof-of-concept, or a new UI over the old planner. **Do** build durable ports/interfaces and a tested path end to end, even if only a few adapters and one specialist model are initially configured.
+**Do not** build a disposable mock workflow, an isolated swarm proof-of-concept, or a new UI over the old planner. **Do** build durable ports/interfaces and a tested path end to end with a small set of adapters and role-qualified models, including a reviewer distinct from the Engineer model.
 
 ### 2.2 Reuse policy: adapt what we own, behind ports
 
@@ -137,7 +137,7 @@ Keep transport stable and versioned (JSON over local HTTP, Unix socket, or stdio
 
 ## 4. Roles, Authorities, and Separation of Duties
 
-Roles are **capability contracts**, not personalities or permanently running processes. Route each invocation to an eligible model using measured task performance and resource constraints. Multiple roles can share a model if needed, but verification should use independent context and preferably different tests or methods.
+Roles are **capability contracts**, not personalities or permanently running processes. Deterministic responsibilities require no model. Route each model-backed invocation to an eligible model using measured task performance and resource constraints. A model may hold multiple qualified roles, but cannot provide the model review of a candidate it authored; the reviewer must be a different model (§8.1), with independent context and evidence.
 
 | Role | Responsibility | Inputs | Outputs | Forbidden actions |
 |---|---|---|---|---|
@@ -163,7 +163,7 @@ Roles are **capability contracts**, not personalities or permanently running pro
 
 Use a **hybrid/adaptive process**, not a mandatory sequential waterfall. Within a package, specialists may iterate, but every attempt has explicit bounds and every accepted state is evidence-based.
 
-**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect (through `HostPlugin`) or the Designer role writes charters and contracts; the local PM handles sequencing and exceptions. The local PM takes over decomposition for a task class once its own calibration record (§4.5) shows its contracts are accepted and fulfilled at a rate comparable to frontier-written ones.
+**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect performs the Designer/contract-authoring role through `HostPlugin`; already approved contracts can also be imported for offline execution. The local PM handles sequencing and exceptions. Local contract authoring is a separately qualified capability, not a default Spark/Bolt assignment. The local PM takes over decomposition for a task class once its own calibration record (§4.5) shows its contracts are accepted and fulfilled at a rate comparable to frontier-written ones.
 
 ### 4.2 Management by exception
 
@@ -182,7 +182,7 @@ Explicitly store approver, decision, rationale, affected requirements, and revis
 
 ### 4.4 Every intelligence has a voice: Request → Assess → Commit
 
-No specialist begins substantial work until it has been asked what it thinks of the request and an explicit commitment has been recorded. The PM does not issue "implement X in 20 minutes." It says: here is the outcome, the context, the acceptance criteria, and a proposed timebox — what do you think, and are you prepared to take this on?
+No model-backed specialist begins substantial work until it has been asked what it thinks of the request and an explicit commitment has been recorded. Deterministic duties do not require a model or an assessment call. The PM does not issue "implement X in 20 minutes." It says: here is the outcome, the context, the acceptance criteria, and a proposed timebox — what do you think, and are you prepared to take this on?
 
 This is deliberate, and it mirrors how the human works with Claude and Codex: asking "what do you think of this design, would you implement it as is?" rather than "implement file X." In practice, intelligences that are given autonomy over whether and how to take on work produce better first-attempt results. The voice is the point; the calibration record (§4.5) is what keeps the voice honest.
 
@@ -471,7 +471,7 @@ Deadline extensions must be recorded, justified, and authorized; do not silently
 3. **Integration checks:** merged revision, full relevant tests, migration compatibility, interface behavior, reproducible build.
 4. **UAT:** stakeholder-facing acceptance against charter and requirements; the frontier architect assists but the human authorizes final acceptance.
 
-The Verifier receives the contract and evidence without inheriting the Engineer's entire thought history. Separate worktrees/permissions; reviewer cannot change the candidate patch as part of approving it.
+The Verifier receives the contract and evidence without inheriting the Engineer's entire thought history. Separate worktrees/permissions; reviewer cannot change the candidate patch as part of approving it. Locked probes are the primary gate. The model reviewer must have a different model identity from the attempt's Engineer; changing only the session or prompt does not qualify. Use a separately qualified local reviewer, or explicitly authorized frontier review through `HostPlugin`. If no eligible independent reviewer is available, keep the required review blocked or uncertain; never substitute Engineer self-review or silently call the frontier. A different model does not replace the mechanical checks or establish correctness by itself.
 
 ### 8.2 Isolation and concurrency
 
@@ -524,7 +524,7 @@ Embedding, vector, graph, and parsing concerns are behind `ContextProvider` insi
 
 Use typed request/response contracts, stable IDs, version fields, idempotency keys, and explicit error types. Internal ports need not be remote services. Build a modular monolith first, with **separately supervised external workers** where needed; don't preemptively create dozens of services.
 
-**Worker adapters:** local specialists use bounded execution adapters backed by local model endpoints. The Engineer's tool and execution adapter is selected from existing owned capabilities during discovery, with `MinimalEngineerAdapter` as the bounded fallback (§2.2); the runner owns the attempt workspace, deadline, permissions, cancellation, and evidence capture. Analyst, Verifier, and Diagnostician may call the local model directly where no tool loop is needed. No local worker role depends on a host plugin.
+**Worker adapters:** local model roles use bounded execution adapters backed by their role-qualified local endpoints. The Engineer's tool and execution adapter is selected from existing owned capabilities during discovery, with `MinimalEngineerAdapter` as the bounded fallback (§2.2); the runner owns the attempt workspace, deadline, permissions, cancellation, and evidence capture. Analyst, Verifier, and an escalated Diagnostician may call their separately assigned model directly where no tool loop is needed (§11). Deterministic integration and failure classification need no model. No local worker role depends on a host plugin.
 
 **Client/harness integrations:** `HostPlugin` is a versioned packet-exchange port for intent refinement, contract authoring, architectural decisions, and UAT. Implement Claude Code and Codex plugins first, then OpenCode, VS Code, and other clients as their extension interfaces permit; ChatGPT can participate through a compatible integration. The host is distinct from the model and its assigned role. Every plugin exchanges the same typed contracts, decision packets, decisions, and delivery evidence, without owning execution or work state. `HostPlugin` handles transport; `ApprovalGateway` records decisions and `PolicyEngine` enforces their authority. Model capability and authority are independent of the client/harness. VORTEX remains an available transport under the same contract, audit, permission, and evidence rules. Host integrations are optional to autonomous local operation, which must work without any host client installed or connected.
 
@@ -551,14 +551,19 @@ Use typed request/response contracts, stable IDs, version fields, idempotency ke
 
 Choose models based on performance **in the role and environment**, not leaderboard score alone. Maintain a capability registry with benchmark tasks, context constraints, available RAM/VRAM, median execution time, reviewer pass rate, regression rate, failure categories, and measured local compute costs. Preserve model versions and prompt templates with results.
 
-**Initial model assignments are already selected.** Retain the operator-screened Spark and Bolt models in roles similar to their current assignments; do not restart model selection as part of this architecture change.
+**Initial model assignments are already selected.** Retain the operator-screened Spark and Bolt models in roles similar to their current assignments; do not restart their model selection as part of this architecture change. Spark and Bolt are not default owners of the other roles. Use the cheapest adequate existing capability for each responsibility:
 
-| Model / current configured alias | Initial Resonant role |
+| Role | Initial implementation / model assignment |
 |---|---|
-| Spark-X2.6-4B / `spark-x2.6-4b:q8-dspark` | Engineer: local coding and implementation work. |
-| Nemotron-3.5-Bolt-E4B / `nemotron-3.5-bolt-e4b:q4` | Local PM support: prioritization, task selection, and bounded routing decisions. This does not establish capability for unrestricted decomposition or architectural planning. |
+| Engineer | Spark-X2.6-4B / `spark-x2.6-4b:q8-dspark`: local coding and implementation. |
+| Local PM support | Nemotron-3.5-Bolt-E4B / `nemotron-3.5-bolt-e4b:q4`: prioritization, task selection, and bounded routing decisions. This does not establish capability for unrestricted decomposition or architectural planning. |
+| Analyst | Scout retrieval followed by Ranger analysis with its existing LFM3-1.7B / `lfm3-1.7b:q8` assignment when interpretation is needed. This is not an automatic reviewer assignment. |
+| Designer / contract author | Frontier through `HostPlugin` initially; approved contracts can be imported for offline execution. Local authoring requires separate qualification. |
+| Verifier | Deterministic locked probes are the primary gate, plus a separately qualified reviewer model different from the attempt's Engineer (§8.1). The local reviewer assignment is an open ADR; frontier review requires explicit authorization through `HostPlugin`. |
+| Diagnostician | Deterministic failure classification first. Assign a model only for escalation; that model assignment is an open ADR. |
+| Integrator | Deterministic Git coordination and regression gates, with no default model. Conflicts requiring code changes create bounded Engineer work and require renewed verification. |
 
-Carry forward the existing screening evidence and preserve the current quantization, draft-model, runtime, sampling, and resource settings in versioned deployment records. Trailblazer's `config.ex`, `docs/design.md` §7.2, and `docs/local-planner.md` identify the current baseline; verify configuration provenance during discovery without starting a new model audition. Validate the new adapter and end-to-end integration against this baseline. Extend role assignments or consider replacements only for a demonstrated capability gap, measured regression, or material deployment change. Frontier-led planning and final human acceptance retain their existing boundaries; independent verification remains required regardless of model choice.
+Carry forward the existing screening evidence and preserve the current quantization, draft-model, runtime, sampling, and resource settings in versioned deployment records. Trailblazer's `config.ex`, `docs/design.md` §7.2, and `docs/local-planner.md` identify the Spark/Bolt baseline; verify configuration provenance during discovery without starting a new audition for those roles. Validate the new adapters and end-to-end integration against this baseline. Spark/Bolt widen scope only when role-specific calibration supports it, not by default. Unassigned responsibilities use deterministic tooling where adequate; model-backed work waits for a qualified local assignment or explicitly authorized frontier assistance. Do not silently expand an existing model's role or violate local-only operation to fill a gap. Consider replacing a screened assignment only for a demonstrated capability gap, measured regression, or material deployment change. Frontier-led planning and final human acceptance retain their existing boundaries.
 
 Key outcome metrics:
 
@@ -584,7 +589,7 @@ The plan is sequenced by risk and vertical completeness. Adjust daily based on a
 
 | Day | Primary outcome | Demonstrable acceptance |
 |---|---|---|
-| **1** | Discovery of owned components; ADRs (ledger, local execution adapter or named fallback, runner isolation, compute budget); project skeleton; ledger with package + attempt state machines | Transition tests for both machines; state survives restart; local execution path selected independently of host plugins by end of day |
+| **1** | Discovery of owned components; ADRs (ledger, local execution adapter or named fallback, independent local reviewer, runner isolation, compute budget); project skeleton; ledger with package + attempt state machines | Transition tests for both machines; state survives restart; local execution path selected independently of host plugins by end of day; reviewer eligibility or the missing capability is recorded |
 | **2** | Worktree lifecycle; cgroup-based runner with hard timeouts; reconciliation on every exit path; observability | Timeout kills the whole tree; exit never auto-accepts; silent/no-op/crash exits reconcile correctly |
 | **3** | Contract intake with locked probes; Trailblazer `ContextProvider` adapter with revision stamps; selected local Engineer execution adapter; first real run | Local worker modifies an isolated worktree from revision-grounded context without a frontier client; **single-agent baseline captured** |
 | **4** | Assess → commit protocol (Ready/Decompose/Clarify/Decline + timebox-only counter); calibration store and pre-assessment summary; deterministic verification + independent reviewer | Bounded assessment; counters can't touch acceptance; failed task cannot self-close |
@@ -650,6 +655,7 @@ Implement these as automated integration tests where practical, plus a clearly d
 18. **Calibration loop:** a confident (≥ threshold) commitment that fails verification is recorded as an overclaim, and the next assessment prompt for that actor/task class shows the updated record.
 19. **Double decline:** two eligible models decline; package escalates to the contract author rather than trying a third.
 20. **Host independence and plugin parity:** the local delivery path works without any host client installed or connected. Every configured `HostPlugin` passes the same versioned contract/decision/UAT exchange and authority tests, without owning worker execution or ledger transitions.
+21. **Role assignment and review independence:** retaining Spark/Bolt does not populate unassigned roles. An Engineer model cannot supply its candidate's model review through a second session or prompt. Missing reviewer capability blocks required review without promoting the candidate or silently invoking a frontier model; the offline happy path uses an eligible distinct local reviewer.
 
 **Gate:** The product is not "done" just because these cases have stories or UI mockups. Show tests, actual logs, and a reproducible demonstration.
 
