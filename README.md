@@ -163,7 +163,7 @@ Roles are **capability contracts**, not personalities or permanently running pro
 
 Use a **hybrid/adaptive process**, not a mandatory sequential waterfall. Within a package, specialists may iterate, but every attempt has explicit bounds and every accepted state is evidence-based.
 
-**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect (through a supported frontier-facing integration) or the Designer role writes charters and contracts; the local PM handles sequencing and exceptions. The local PM takes over decomposition for a task class once its own calibration record (§4.5) shows its contracts are accepted and fulfilled at a rate comparable to frontier-written ones.
+**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect (through `HostPlugin`) or the Designer role writes charters and contracts; the local PM handles sequencing and exceptions. The local PM takes over decomposition for a task class once its own calibration record (§4.5) shows its contracts are accepted and fulfilled at a rate comparable to frontier-written ones.
 
 ### 4.2 Management by exception
 
