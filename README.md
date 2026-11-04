@@ -561,7 +561,7 @@ The operator chooses models based on performance **in the role and environment**
 | Local PM support | Nemotron-3.5-Bolt-E4B / `nemotron-3.5-bolt-e4b:q4`: prioritization, task selection, and bounded routing decisions. This does not establish capability for unrestricted decomposition or architectural planning. |
 | Analyst | Scout retrieval followed by Ranger analysis with its existing LFM3-1.7B / `lfm3-1.7b:q8` assignment when interpretation is needed. This is not an automatic reviewer assignment. |
 | Designer / contract author | Frontier through `HostPlugin` initially; approved contracts can be imported for offline execution. Local authoring requires separate qualification and an operator assignment decision. |
-| Verifier | Deterministic locked probes are the primary gate, plus an operator-assigned reviewer model different from the attempt's Engineer (§8.1). The leading local candidate is an LFM3-series decision model; the operator selects the specific model using qualification evidence. The reviewer ADR remains open (§16); frontier review requires explicit authorization through `HostPlugin`. |
+| Verifier | Deterministic locked probes are the primary gate, plus an operator-assigned reviewer model different from the attempt's Engineer (§8.1). Candidates include LFM3-series decision models and LFM2.5-24B-A2B; the operator selects the specific model using qualification evidence and measured switching cost. The reviewer ADR remains open (§16); frontier review requires explicit authorization through `HostPlugin`. |
 | Diagnostician | Deterministic failure classification first. Use a model only for escalation; the operator's model assignment remains an open ADR. |
 | Integrator | Deterministic Git coordination and regression gates, with no default model. Conflicts requiring code changes create bounded Engineer work and require renewed verification. |
 
@@ -752,7 +752,7 @@ The implementors should select reasonable technical defaults and record short AD
 7. **UI:** CLI-only versus minimal LiveView during initial hardening.
 8. **Parallelism:** begin conservatively; increase only with worktree conflict management and measured compute headroom.
 9. **Host plugin protocol:** versioned contract/decision/UAT exchange, initial client extension interfaces, and optional VORTEX transport, without bypassing authority checks or local-only guarantees.
-10. **Independent reviewer — operator decision:** the Day 1 ADR presents the outcomes below, qualification evidence, and resource implications. The leading candidate is an LFM3-series decision model; no specific model is selected by this draft. Evaluate review against known faulty and correct candidates using fixed criteria, recording false acceptance/rejection and execution cost.
+10. **Independent reviewer — operator decision:** the Day 1 ADR presents the outcomes below, qualification evidence, and resource implications. Candidates include LFM3-series decision models and LFM2.5-24B-A2B; no specific model is selected by this draft. Evaluate review against known faulty and correct candidates using fixed criteria and task prompts without personas, recording false acceptance/rejection and execution cost. Under `--models-max 1`, measure the complete role-switch cost: loading the reviewer, review execution, restoring the Engineer model, and resulting delay to coding work. Present those measurements with qualification results for the operator's choice.
 
 | Reviewer ADR outcome | Required operator decision and consequence |
 |---|---|
