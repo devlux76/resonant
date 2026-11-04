@@ -137,7 +137,7 @@ Keep transport stable and versioned (JSON over local HTTP, Unix socket, or stdio
 
 ## 4. Roles, Authorities, and Separation of Duties
 
-Roles are **capability contracts**, not personalities or permanently running processes. Deterministic responsibilities require no model. Route each model-backed invocation to an eligible model using measured task performance and resource constraints. A model may hold multiple qualified roles, but cannot provide the model review of a candidate it authored; the reviewer must be a different model (§8.1), with independent context and evidence.
+Roles are **capability contracts**, not personalities or permanently running processes. Deterministic responsibilities require no model. The operator owns model-to-role assignments; eligibility means an operator-approved assignment, not an inference from calibration scores. Dispatch work within those assignments using measured task performance and resource constraints. A model may hold multiple operator-approved roles, but cannot provide the model review of a candidate it authored; the reviewer must be a different model (§8.1), with independent context and evidence.
 
 | Role | Responsibility | Inputs | Outputs | Forbidden actions |
 |---|---|---|---|---|
@@ -163,7 +163,7 @@ Roles are **capability contracts**, not personalities or permanently running pro
 
 Use a **hybrid/adaptive process**, not a mandatory sequential waterfall. Within a package, specialists may iterate, but every attempt has explicit bounds and every accepted state is evidence-based.
 
-**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect performs the Designer/contract-authoring role through `HostPlugin`; already approved contracts can also be imported for offline execution. The local PM handles sequencing and exceptions. Local contract authoring is a separately qualified capability, not a default Spark/Bolt assignment. The local PM takes over decomposition for a task class once its own calibration record (§4.5) shows its contracts are accepted and fulfilled at a rate comparable to frontier-written ones.
+**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect performs the Designer/contract-authoring role through `HostPlugin`; already approved contracts can also be imported for offline execution. The local PM handles sequencing and exceptions. Local contract authoring is a separately qualified, operator-assigned capability, not a default Spark/Bolt assignment. Calibration (§4.5) may support a proposal for the local PM to take over decomposition for a task class; the operator decides whether to authorize that assignment.
 
 ### 4.2 Management by exception
 
@@ -179,6 +179,8 @@ Routine, within-tolerance events do not require PM inference. Wake the PM only f
 | 3: Product | Alter intended behavior, delivery scope, security/privacy promise, accepted tradeoff | Human, optionally advised by frontier architect |
 
 Explicitly store approver, decision, rationale, affected requirements, and revised baseline. If frontier access is unavailable, pause only work that truly requires that approval; continue unrelated work. Approval requests carry an expiry; an expired request returns the package to the PM as an exception rather than waiting indefinitely.
+
+Model assignment, role expansion, and model replacement are operator decisions, recorded in the ledger and capability registry. Calibration supplies evidence and recommendations; it never hires, promotes, demotes, or replaces a model automatically. Ordinary task dispatch and within-contract implementation choices remain delegated within the approved assignments.
 
 ### 4.4 Every intelligence has a voice: Request → Assess → Commit
 
@@ -247,7 +249,7 @@ Declines are tracked separately: a decline followed by another model succeeding 
 
 This is information, not punishment. Below a minimum sample (initially `n < 5`) the summary says "insufficient history" instead of a number.
 
-**Used by the PM.** Routing, timeboxes, and contract size use the record, not the stated confidence alone. A frequent overclaimer gets smaller contracts and longer timeboxes; a frequent underclaimer may need better context or a different decomposition.
+**Used by the PM.** Dispatch within operator-approved assignments, timeboxes, and contract size use the record, not the stated confidence alone. A frequent overclaimer may need smaller contracts and longer timeboxes; a frequent underclaimer may need better context or a different decomposition. Model-to-role changes are recommendations to the operator, never automatic assignments or replacements.
 
 **Applies to everyone, including the PM and the verifier.** The PM's estimates and contracts get a record (contracts later sent back for Decompose/Clarify, forecasts missed). The verifier gets one too: passes later contradicted at integration or UAT count as overclaims. Reciprocal humility requires that the manager is measured too.
 
@@ -270,7 +272,7 @@ Use a transactional project store (SQLite with WAL is acceptable for single-host
 - `Decision`: authority tier, proposal, options, rationale, approving actor, timestamp, impact, spec revision.
 - `RiskIssue`: risk vs realized issue, owner, probability/impact or severity, trigger, mitigation, linked packages, status.
 - `Event`: unique ID, aggregate, sequence/version, timestamp, cause, payload, correlation and idempotency keys.
-- `ModelCapability`: model/harness ID, supported role/task types, context limits, memory/compute needs, local endpoint, quality and reliability observations.
+- `ModelCapability`: model/harness ID, supported role/task types, operator-approved assignments and decision references, context limits, memory/compute needs, local endpoint, quality and reliability observations.
 - `Assessment`: package ID, actor (model + harness + prompt-template version), role, task class, request hash, response (ready/counterproposal/decompose/clarify/decline/unassessed), confidence, estimate, risks, counterproposal body, PM disposition.
 - `CalibrationRecord`: derived per actor × role × task class: n, success rate, overclaim/underclaim rates, calibration error, estimate ratio. Rebuildable from `Assessment` + `Attempt` outcomes, so it is a projection, not a second source of truth.
 - `WorkspaceLease`: task/worktree, lock scope, lease owner, lease expiry, fencing generation.
@@ -420,9 +422,9 @@ Paths and commands above are illustrative, not assertions about the actual proje
 
 The runner must:
 
-1. Start from a **committed** contract (§4.4): model/harness already selected by capability, calibration record, and available resources, and the assessment recorded.
+1. Start from a **committed** contract (§4.4): model/harness selected within an operator-approved assignment and available resources, with the assessment recorded. Calibration can inform dispatch but cannot grant a new model role.
 2. Obtain an atomic lease and task-specific worktree tied to the baseline.
-3. Assemble a revision-stamped context packet and render a concise role-specific prompt (reusing the assessment session's prefix where possible).
+3. Assemble a revision-stamped context packet and render a concise task prompt (reusing the assessment session's prefix where possible): task, inputs, expected outputs, acceptance criteria, and authority/tool boundaries. Local prompt templates assign no persona, personal name, character, or personality. Role names identify responsibilities and permissions, not characters to enact; assessment and calibration use the same task-focused format. This local-model rule does not prescribe the framing used by frontier hosts.
 4. Launch the worker under supervision, in its own cgroup, with permission/network/resource limits.
 5. Enforce a real deadline external to the model. On expiry, request graceful cancellation then forcibly terminate the process group after a short grace period.
 6. Always capture exit information and reconcile Git state, including uncommitted and untracked changes.
@@ -509,7 +511,7 @@ Build minimal but explicit ports, with working test doubles:
 ProjectStore           create/read/transition/append_event
 GitWorkspace           create/baseline/diff/status/commit/merge/cleanup
 WorkerRunner           start/cancel/terminate/inspect
-ModelRegistry          eligible_models/select/record_outcome
+ModelRegistry          assigned_models/recommend/record_assignment/record_outcome
 AssessmentService      request_assessment/record_response/resolve_counter
 CalibrationStore       record/summary_for(actor, role, task_class)/rebuild
 ContextProvider        build_packet/invalidate/verify_freshness   (Trailblazer adapter)
@@ -549,7 +551,7 @@ Use typed request/response contracts, stable IDs, version fields, idempotency ke
 
 ## 11. Model Selection, Quality Metrics, and Economics
 
-Choose models based on performance **in the role and environment**, not leaderboard score alone. Maintain a capability registry with benchmark tasks, context constraints, available RAM/VRAM, median execution time, reviewer pass rate, regression rate, failure categories, and measured local compute costs. Preserve model versions and prompt templates with results.
+The operator chooses models based on performance **in the role and environment**, not leaderboard score alone. Maintain a capability registry with the operator's assignment decisions, benchmark tasks, context constraints, available RAM/VRAM, median execution time, reviewer pass rate, regression rate, failure categories, and measured local compute costs. Calibration and the PM recommend assignments; only the operator authorizes them. Preserve model versions and prompt templates with results.
 
 **Initial model assignments are already selected.** Retain the operator-screened Spark and Bolt models in roles similar to their current assignments; do not restart their model selection as part of this architecture change. Spark and Bolt are not default owners of the other roles. Use the cheapest adequate existing capability for each responsibility:
 
@@ -558,12 +560,12 @@ Choose models based on performance **in the role and environment**, not leaderbo
 | Engineer | Spark-X2.6-4B / `spark-x2.6-4b:q8-dspark`: local coding and implementation. |
 | Local PM support | Nemotron-3.5-Bolt-E4B / `nemotron-3.5-bolt-e4b:q4`: prioritization, task selection, and bounded routing decisions. This does not establish capability for unrestricted decomposition or architectural planning. |
 | Analyst | Scout retrieval followed by Ranger analysis with its existing LFM3-1.7B / `lfm3-1.7b:q8` assignment when interpretation is needed. This is not an automatic reviewer assignment. |
-| Designer / contract author | Frontier through `HostPlugin` initially; approved contracts can be imported for offline execution. Local authoring requires separate qualification. |
-| Verifier | Deterministic locked probes are the primary gate, plus a separately qualified reviewer model different from the attempt's Engineer (§8.1). The local reviewer assignment is an open ADR; frontier review requires explicit authorization through `HostPlugin`. |
-| Diagnostician | Deterministic failure classification first. Assign a model only for escalation; that model assignment is an open ADR. |
+| Designer / contract author | Frontier through `HostPlugin` initially; approved contracts can be imported for offline execution. Local authoring requires separate qualification and an operator assignment decision. |
+| Verifier | Deterministic locked probes are the primary gate, plus an operator-assigned reviewer model different from the attempt's Engineer (§8.1). The leading local candidate is an LFM3-series decision model; the operator selects the specific model using qualification evidence. The reviewer ADR remains open (§16); frontier review requires explicit authorization through `HostPlugin`. |
+| Diagnostician | Deterministic failure classification first. Use a model only for escalation; the operator's model assignment remains an open ADR. |
 | Integrator | Deterministic Git coordination and regression gates, with no default model. Conflicts requiring code changes create bounded Engineer work and require renewed verification. |
 
-Carry forward the existing screening evidence and preserve the current quantization, draft-model, runtime, sampling, and resource settings in versioned deployment records. Trailblazer's `config.ex`, `docs/design.md` §7.2, and `docs/local-planner.md` identify the Spark/Bolt baseline; verify configuration provenance during discovery without starting a new audition for those roles. Validate the new adapters and end-to-end integration against this baseline. Spark/Bolt widen scope only when role-specific calibration supports it, not by default. Unassigned responsibilities use deterministic tooling where adequate; model-backed work waits for a qualified local assignment or explicitly authorized frontier assistance. Do not silently expand an existing model's role or violate local-only operation to fill a gap. Consider replacing a screened assignment only for a demonstrated capability gap, measured regression, or material deployment change. Frontier-led planning and final human acceptance retain their existing boundaries.
+Carry forward the existing screening evidence and preserve the current quantization, draft-model, runtime, sampling, and resource settings in versioned deployment records. Trailblazer's `config.ex`, `docs/design.md` §7.2, and `docs/local-planner.md` identify the Spark/Bolt baseline; verify configuration provenance during discovery without starting a new audition for those roles. Validate the new adapters and end-to-end integration against this baseline. Role-specific calibration may support a proposal to widen Spark/Bolt scope; only the operator authorizes that change. Unassigned responsibilities use deterministic tooling where adequate; model-backed work waits for an operator-approved local assignment or explicitly authorized frontier assistance. Do not silently expand an existing model's role or violate local-only operation to fill a gap. A demonstrated capability gap, measured regression, or material deployment change can justify recommending a replacement; the operator decides. Frontier-led planning and final human acceptance retain their existing boundaries.
 
 Key outcome metrics:
 
@@ -584,6 +586,8 @@ The optimization target is **reliable delivered outcomes**, not token volume, nu
 ## 12. First-Week Delivery Plan (Target, Not a Guarantee)
 
 **Definition of week-one success:** A person can point Resonant at an existing Git repository, provide a Markdown feature/bug specification, review a generated charter and SMART work package, execute a bounded local coding task, observe real file changes and a runner exit, see independent verification, recover from timeout/crash, integrate an approved patch, and export a traceable UAT packet. This must work without Claude, Codex, OpenRouter, or any paid API.
+
+**Unresolved reviewer dependency:** this definition requires an operator-assigned, qualified local reviewer distinct from the Engineer. The Day 1 ADR must present the three outcomes in §16 for the operator's decision. Until that decision is recorded, do not assume a reviewer or claim that offline integration is achievable; the success definition above remains in force.
 
 The plan is sequenced by risk and vertical completeness. Adjust daily based on actual observations. Avoid broad parallel development until the state/contract schemas are fixed. Context (Trailblazer), existing local execution capabilities, and the frontier channel (VORTEX) are adaptation candidates; discovery must establish how much execution machinery can actually be reused. Host plugins do not implement local execution. New work includes the OTP application itself, the ledger, state machines, runner/reconciler, assessment/calibration, and gates. The seven-day target remains conditional on the selected local execution adapter and demonstrated reuse; activate the named fallback (§2.2) and revise the forecast if no suitable owned adapter is established by the end of Day 1.
 
@@ -612,13 +616,13 @@ The plan is sequenced by risk and vertical completeness. Adjust daily based on a
 
 ### 12.2 P1: add if the vertical slice is solid
 
-- More specialist model adapters and capability-based dynamic routing.
+- More specialist model adapters and capability-based dispatch within operator-approved assignments.
 - Phoenix LiveView board with risk/milestone insights.
 - Trailblazer adaptations beyond the minimum (richer staleness signals, test-to-code links) as Resonant usage reveals gaps.
 - Additional graph/work-trace links, stronger risk scoring, more comprehensive metrics.
 - Generic `HostPlugin` implementations: Claude Code and Codex first, then OpenCode, VS Code, and other clients; VORTEX is an available transport. Plugins exchange contracts, material decisions, and UAT packets without becoming local execution dependencies.
 - Approach counterproposals (week one allows timebox-only counters).
-- Local PM taking over decomposition for task classes where its calibration record supports it (§4.1).
+- Local PM decomposition for task classes explicitly assigned by the operator after considering calibration evidence (§4.1).
 
 ### 12.3 P2: architecture must support, not necessarily implement this week
 
@@ -656,6 +660,8 @@ Implement these as automated integration tests where practical, plus a clearly d
 19. **Double decline:** two eligible models decline; package escalates to the contract author rather than trying a third.
 20. **Host independence and plugin parity:** the local delivery path works without any host client installed or connected. Every configured `HostPlugin` passes the same versioned contract/decision/UAT exchange and authority tests, without owning worker execution or ledger transitions.
 21. **Role assignment and review independence:** retaining Spark/Bolt does not populate unassigned roles. An Engineer model cannot supply its candidate's model review through a second session or prompt. Missing reviewer capability blocks required review without promoting the candidate or silently invoking a frontier model; the offline happy path uses an eligible distinct local reviewer.
+22. **Operator-owned model assignments:** calibration can recommend a model-to-role change but cannot apply it. Only a recorded operator decision changes the assignment; ordinary dispatch within that approved assignment remains autonomous.
+23. **Local prompt templates:** local invocations state task, inputs, outputs, criteria, and authority/tool boundaries without assigning a persona, personal name, character, or personality, including assessment and review prompts.
 
 **Gate:** The product is not "done" just because these cases have stories or UI mockups. Show tests, actual logs, and a reproducible demonstration.
 
@@ -735,7 +741,7 @@ Do not force an umbrella app for a small codebase, but do not collapse modules i
 
 ## 16. Open Decisions to Resolve by Evidence, Not Speculation
 
-The implementors should select reasonable defaults and record short ADRs for these:
+The implementors should select reasonable technical defaults and record short ADRs for these, except decisions explicitly reserved for the operator:
 
 1. **Canonical ledger implementation:** SQLite schema (state tables + same-transaction audit log) and migration tooling.
 2. **Git-bug:** sync/export depth with the planner (the global commit-message rule already depends on it).
@@ -746,6 +752,15 @@ The implementors should select reasonable defaults and record short ADRs for the
 7. **UI:** CLI-only versus minimal LiveView during initial hardening.
 8. **Parallelism:** begin conservatively; increase only with worktree conflict management and measured compute headroom.
 9. **Host plugin protocol:** versioned contract/decision/UAT exchange, initial client extension interfaces, and optional VORTEX transport, without bypassing authority checks or local-only guarantees.
+10. **Independent reviewer — operator decision:** the Day 1 ADR presents the outcomes below, qualification evidence, and resource implications. The leading candidate is an LFM3-series decision model; no specific model is selected by this draft. Evaluate review against known faulty and correct candidates using fixed criteria, recording false acceptance/rejection and execution cost.
+
+| Reviewer ADR outcome | Required operator decision and consequence |
+|---|---|
+| A: Named distinct local reviewer | Operator selects a specific model, with an explicit qualification test and results. This preserves the current offline verification/integration target. |
+| B: Bolt also reviews | Operator explicitly expands Bolt's assignment, supported by a reviewer qualification test. Bolt may review Spark-authored work, but cannot review a candidate authored by Bolt. |
+| C: Offline work stops pending review | Operator explicitly revises week-one success: offline execution produces a candidate with mechanical checks passed, while independent review remains pending. Integration waits for authorized frontier or human review. Revise the relevant state, verification, success, and test contracts together; a pending candidate is not accepted or integrated. |
+
+No option is selected here. A missing or expired operator decision does not choose a fallback or relax the existing gates.
 
 Graph backend and vector strategy are no longer Resonant decisions; they belong to Trailblazer (§6.3).
 
