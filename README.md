@@ -7,7 +7,7 @@
 **Target:** Once the design is accepted, deliver a working vertical slice within seven calendar days; establish the correct long-term architecture from day one.  
 **Naming:** *SMART Resonance* is the product; *Resonant* is the codebase and service name.
 
-> **Governing instruction:** This is a **greenfield architecture**, not a refactor of the current organically evolved agent system. But it is **not a greenfield codebase**: we own most of the components it needs (Trailblazer, scout/ranger, the planner, the OpenCode fork, the VORTEX peer bridge, Homer). Those are **adapted and specialized behind Resonant's ports, not reimplemented.** What we do not inherit is their coupling, data model, or control flow where it conflicts with this design. Optimize for the strongest useful deliverable within the week, **without sacrificing the future architecture to achieve a demo**.
+> **Governing instruction:** This is a **greenfield architecture**, not a refactor of the current organically evolved agent system. But it is **not a greenfield codebase**: we own most of the components it needs (Trailblazer, scout/ranger, the planner, the OpenCode fork, the VORTEX peer bridge). Those are **adapted and specialized behind Resonant's ports, not reimplemented.** What we do not inherit is their coupling, data model, or control flow where it conflicts with this design. Optimize for the strongest useful deliverable within the week, **without sacrificing the future architecture to achieve a demo**.
 
 ---
 
@@ -63,7 +63,6 @@ We own the code below. The default is **adapt and specialize**, not "evaluate an
 | **Planner** (over git-bug) | **Logic donor and integration adapter.** Resonant's ledger owns work state; git-bug stays a sync/export surface so existing workflows and the commit-message rule keep working. |
 | **OpenCode fork** | **Adapt** as the primary Engineer harness: one `opencode run` subprocess per attempt, in the attempt's worktree, under the runner's deadline. |
 | **VORTEX** (Claude/Codex peer bridge) | **Adapt** as the frontier channel: decision packets, contract authoring, cross-review, UAT. Governed like any worker, under the same contract, audit, and evidence rules; never on the autonomous local path. |
-| **Homer** (Elixir/OTP) | **Decide by ADR** whether Resonant is a new OTP application alongside Homer or a supervised subtree within it. Reuse its supervision and process-management code either way. |
 
 Exact paths, versions, and protocols are verified during Day 1 discovery, not assumed from this table.
 
@@ -565,11 +564,11 @@ The optimization target is **reliable delivered outcomes**, not token volume, nu
 
 **Definition of week-one success:** A person can point Resonant at an existing Git repository, provide a Markdown feature/bug specification, review a generated charter and SMART work package, execute a bounded local coding task, observe real file changes and a runner exit, see independent verification, recover from timeout/crash, integrate an approved patch, and export a traceable UAT packet. This must work without Claude, Codex, OpenRouter, or any paid API.
 
-The plan is sequenced by risk and vertical completeness. Adjust daily based on actual observations. Avoid broad parallel development until the state/contract schemas are fixed. The week is feasible **because** context (Trailblazer), the engineer harness (OpenCode fork), process supervision (Homer), and the frontier channel (VORTEX) are adapted, not built; most new code is the ledger, state machines, runner/reconciler, assessment/calibration, and gates.
+The plan is sequenced by risk and vertical completeness. Adjust daily based on actual observations. Avoid broad parallel development until the state/contract schemas are fixed. The week is feasible **because** context (Trailblazer), the engineer harness (OpenCode fork), and the frontier channel (VORTEX) are adapted, not built; most new code is the OTP application itself, the ledger, state machines, runner/reconciler, assessment/calibration, and gates.
 
 | Day | Primary outcome | Demonstrable acceptance |
 |---|---|---|
-| **1** | Discovery of owned components; ADRs (ledger, Homer relationship, runner isolation, compute budget); project skeleton; ledger with package + attempt state machines | Transition tests for both machines; state survives restart |
+| **1** | Discovery of owned components; ADRs (ledger, runner isolation, compute budget); project skeleton; ledger with package + attempt state machines | Transition tests for both machines; state survives restart |
 | **2** | Worktree lifecycle; cgroup-based runner with hard timeouts; reconciliation on every exit path; observability | Timeout kills the whole tree; exit never auto-accepts; silent/no-op/crash exits reconcile correctly |
 | **3** | Contract intake with locked probes; Trailblazer `ContextProvider` adapter with revision stamps; OpenCode engineer adapter; first real run | Local worker modifies an isolated worktree from revision-grounded context; **single-agent baseline captured** |
 | **4** | Assess → commit protocol (Ready/Decompose/Clarify/Decline + timebox-only counter); calibration store and pre-assessment summary; deterministic verification + independent reviewer | Bounded assessment; counters can't touch acceptance; failed task cannot self-close |
@@ -677,7 +676,7 @@ Do not force an umbrella app for a small codebase, but do not collapse modules i
 
 ### First actions
 
-1. Inspect the owned components listed in §2.2 (Trailblazer, scout/ranger, planner, OpenCode fork, VORTEX, Homer) and confirm their current paths, versions, and protocols. **Do not assume** a component behaves as described here without inspection.
+1. Inspect the owned components listed in §2.2 (Trailblazer, scout/ranger, planner, OpenCode fork, VORTEX) and confirm their current paths, versions, and protocols. **Do not assume** a component behaves as described here without inspection.
 2. Create a concise `REUSE_DECISIONS.md` recording, per component, the adaptations Resonant needs (default: adapt; replace only with an ADR).
 3. Produce an architecture ADR for the canonical work ledger, graph backend, runner isolation, and model adapter protocol. Confirm decisions against actual runtime/library compatibility.
 4. Establish the schemas, state machine, and cross-component contracts *before* implementing parallel features.
@@ -716,15 +715,14 @@ Do not force an umbrella app for a small codebase, but do not collapse modules i
 The implementors should select reasonable defaults and record short ADRs for these:
 
 1. **Canonical ledger implementation:** SQLite schema (state tables + same-transaction audit log) and migration tooling.
-2. **Homer relationship:** new OTP application alongside Homer, or a supervised subtree within it.
-3. **Git-bug:** sync/export depth with the planner (the global commit-message rule already depends on it).
-4. **Compute budget:** resident models, role-switch cost, realistic concurrency on the host.
-5. **Model execution protocol:** OpenCode-fork invocation, role prompts, assessment prompt, and prefix-cache reuse between assessment and execution.
-6. **Sandboxing:** cgroup-per-worker via `systemd-run --user --scope` versus a container runner; must guarantee whole-tree kill.
-7. **Calibration parameters:** task-class taxonomy, confidence threshold for "confident," minimum `n` before showing numbers, decay of old records.
-8. **UI:** CLI-only versus minimal LiveView during initial hardening.
-9. **Parallelism:** begin conservatively; increase only with worktree conflict management and measured compute headroom.
-10. **VORTEX as worker:** representing Claude/Codex collaboration as a governed worker without bypassing local-only guarantees.
+2. **Git-bug:** sync/export depth with the planner (the global commit-message rule already depends on it).
+3. **Compute budget:** resident models, role-switch cost, realistic concurrency on the host.
+4. **Model execution protocol:** OpenCode-fork invocation, role prompts, assessment prompt, and prefix-cache reuse between assessment and execution.
+5. **Sandboxing:** cgroup-per-worker via `systemd-run --user --scope` versus a container runner; must guarantee whole-tree kill.
+6. **Calibration parameters:** task-class taxonomy, confidence threshold for "confident," minimum `n` before showing numbers, decay of old records.
+7. **UI:** CLI-only versus minimal LiveView during initial hardening.
+8. **Parallelism:** begin conservatively; increase only with worktree conflict management and measured compute headroom.
+9. **VORTEX as worker:** representing Claude/Codex collaboration as a governed worker without bypassing local-only guarantees.
 
 Graph backend and vector strategy are no longer Resonant decisions; they belong to Trailblazer (§6.3).
 
