@@ -1,12 +1,13 @@
 # SMART Resonance
 ## Greenfield Architecture and Implementation Design
 
-**Status:** Implementation handoff, v1.0  
+**Status:** Design draft, v1.1 (not yet an implementation handoff)  
 **Date:** 2026-11-03  
 **Intended audience:** Codex, Claude, and human engineering reviewers  
-**Target:** Deliver a working vertical slice within seven calendar days; establish the correct long-term architecture from day one.
+**Target:** Once the design is accepted, deliver a working vertical slice within seven calendar days; establish the correct long-term architecture from day one.  
+**Naming:** *SMART Resonance* is the product; *Resonant* is the codebase and service name.
 
-> **Governing instruction:** This is a **greenfield product**, not a refactor of the current organically evolved agent system. Inspect the existing implementation and reuse proven components when they are genuinely compatible with this architecture, but do not inherit its coupling, data model, control flow, or limitations merely because code already exists. Optimize for the strongest useful deliverable within the week, **without sacrificing the future architecture to achieve a demo**.
+> **Governing instruction:** This is a **greenfield architecture**, not a refactor of the current organically evolved agent system. But it is **not a greenfield codebase**: we own most of the components it needs (Trailblazer, scout/ranger, the planner, the OpenCode fork, the VORTEX peer bridge, Homer). Those are **adapted and specialized behind Resonant's ports, not reimplemented.** What we do not inherit is their coupling, data model, or control flow where it conflicts with this design. Optimize for the strongest useful deliverable within the week, **without sacrificing the future architecture to achieve a demo**.
 
 ---
 
@@ -19,7 +20,7 @@ The system is not a chat-room swarm, not a set of personas applied to one genera
 The core loop is:
 
 ```text
-Intent → Charter → Reconnaissance → Work packages → Bounded execution
+Intent → Charter → Reconnaissance → Work packages → Assess & commit → Bounded execution
      → Observe evidence → Independent verification → Integration
      → Reconcile plan → Deliver for UAT
           ↘ exception → diagnose → replan / escalate / stop ↗
@@ -31,6 +32,8 @@ Intent → Charter → Reconnaissance → Work packages → Bounded execution
 - Frontier inference is reserved for high-value planning, architectural decisions, material changes, and UAT.
 - Local models handle the recurring, token-intensive implementation process.
 - Every agent operates with epistemic humility: claims are provisional, evidence is inspectable, and verification is independent.
+- Every intelligence in the system has a voice: no specialist begins substantial work without first being asked what it thinks of the request (§4.4).
+- Every intelligence also has a track record: what it said it could do versus what it actually did, kept in durable calibration memory and shown back to it (§4.5).
 - Each attempt has an enforced time budget; stalled work transitions to diagnosis, not blind continuation.
 - Agent memory is expendable. Institutional memory and work state are durable.
 - Codebase indexing is incremental, provenance-aware, and separate from authoritative Git/project records.
@@ -48,23 +51,21 @@ The future system, not the current implementation, defines the module boundaries
 
 **Do not** build a disposable mock workflow, an isolated swarm proof-of-concept, or a new UI over the old planner. **Do** build durable ports/interfaces and a tested path end to end, even if only a few adapters and one specialist model are initially configured.
 
-### 2.2 Reuse policy: intentional, never automatic
+### 2.2 Reuse policy: adapt what we own, behind ports
 
-Evaluate each legacy component for: (1) correctness, (2) isolation, (3) observability, (4) replaceability, (5) testability, (6) local/offline operation, and (7) fit to the target contracts.
+We own the code below. The default is **adapt and specialize**, not "evaluate and maybe replace." Each component sits behind a Resonant port (§9), gets tightened for its role, and keeps its own internals. Replace only when adapting would compromise a target abstraction, and record that in an ADR. Check each against: (1) correctness, (2) isolation, (3) observability, (4) testability, (5) local/offline operation, (6) fit to the target contracts.
 
-| Existing asset | Planned disposition |
+| Owned component | Disposition in Resonant |
 |---|---|
-| EmbeddingGemma 2 embedding pipeline | **Strong reuse candidate** behind an EmbeddingProvider interface. Verify model identity, dimensions, runtime requirements, licensing, and batching. |
-| Qdrant vector storage | **Reuse candidate**, initially acceptable vector backend behind VectorIndex. Retain or consolidate based on measured retrieval quality, resource use, and migration cost. |
-| Tree-sitter / source analysis | **Strong reuse candidate** behind SourceAnalyzer; preserve incremental parsing and symbol provenance. |
-| SQLite three-hop relationship graph | **Migration input / fallback**, not the long-term graph architecture. |
-| Proposed Ladybug graph engine | **Target graph adapter** if validated; prefer a supervised external service where native crash isolation is important. |
-| File watcher + change notification | **Strong reuse candidate** as a *hint source*, not a source of truth or task-completion detector. |
-| Existing planner | **Reference implementation / logic donor**; new Delivery Manager and deterministic workflow engine are distinct components. |
-| Current SQLite Kanban + git-bug | **Migration / integration candidate**; new core owns durable work state, with git-bug as an optional import/export or synchronization adapter. |
-| Existing Claude/Codex pair-programming bridge | **Potential worker collaboration adapter**, provided its protocol, privilege boundaries, and operating costs are explicitly evaluated. Do not assume implementation details. |
+| **Trailblazer** (code graph + vectors + watcher; EmbeddingGemma, Tree-sitter, SQLite graph, Qdrant) | **Adapt** as the `ContextProvider` backend. Resonant consumes Trailblazer as a service; its internals (including the LadybugDB migration) stay Trailblazer's decisions, not Resonant's. Required adjustments: revision/index-generation stamps on every answer, and a staleness signal. |
+| **scout / ranger** | **Adapt** as the Analyst's reconnaissance tools (fast retrieval, then local-model verification of locations). |
+| Trailblazer's **file watcher** | **Adapt** as a reconcile *hint source* only, never a completion detector. |
+| **Planner** (over git-bug) | **Logic donor and integration adapter.** Resonant's ledger owns work state; git-bug stays a sync/export surface so existing workflows and the commit-message rule keep working. |
+| **OpenCode fork** | **Adapt** as the primary Engineer harness: one `opencode run` subprocess per attempt, in the attempt's worktree, under the runner's deadline. |
+| **VORTEX** (Claude/Codex peer bridge) | **Adapt** as the frontier channel: decision packets, contract authoring, cross-review, UAT. Governed like any worker, under the same contract, audit, and evidence rules; never on the autonomous local path. |
+| **Homer** (Elixir/OTP) | **Decide by ADR** whether Resonant is a new OTP application alongside Homer or a supervised subtree within it. Reuse its supervision and process-management code either way. |
 
-A component is **not** reused if adapting it requires compromising the target abstraction. Document keep/adapt/replace decisions in short architecture decision records (ADRs).
+Exact paths, versions, and protocols are verified during Day 1 discovery, not assumed from this table.
 
 ### 2.3 Non-negotiable invariants
 
@@ -123,7 +124,9 @@ The delivery manager makes judgments. It is **not** the scheduler, persistence e
 
 ### 3.2 Deployment target
 
-Single-host, local-first deployment initially; multiple hosts and model backends later. Elixir/OTP is the long-lived coordinator. External model runtimes and native-risk engines operate as supervised subprocesses or services with explicit health checks. Do not assume BEAM supervision alone handles grandchildren or OS process trees; the runner must implement reliable subprocess-group termination.
+Single-host, local-first deployment initially; multiple hosts and model backends later. Elixir/OTP is the long-lived coordinator. External model runtimes and native-risk engines operate as supervised subprocesses or services with explicit health checks. Do not assume BEAM supervision alone handles grandchildren or OS process trees; the runner must implement reliable subprocess-tree termination. Recommended default on Linux: launch each worker in its own cgroup (e.g. `systemd-run --user --scope`) and kill the cgroup. This catches descendants that escape the process group via `setsid`, and provides memory/CPU limits in the same mechanism.
+
+**Compute budget is a first-class design input.** Inference capacity on the host determines how many models can stay resident, whether role switches cost a model reload, and whether parallel worktrees help at all. The Day 1 ADR records the actual budget; until then, design for one resident model serving multiple roles via prompts, with mechanical checks as the primary gate.
 
 Keep transport stable and versioned (JSON over local HTTP, Unix socket, or stdio, selected by implementation assessment). Prefer a simple, documented API over elaborate distributed messaging during week one.
 
@@ -157,6 +160,8 @@ Roles are **capability contracts**, not personalities or permanently running pro
 
 Use a **hybrid/adaptive process**, not a mandatory sequential waterfall. Within a package, specialists may iterate, but every attempt has explicit bounds and every accepted state is evidence-based.
 
+**Who writes contracts, initially.** Decomposition into SMART contracts is the highest-leverage judgment in the system. Initially, the frontier architect (via VORTEX) or the Designer role writes charters and contracts; the local PM handles sequencing and exceptions. The local PM takes over decomposition for a task class once its own calibration record (§4.5) shows its contracts are accepted and fulfilled at a rate comparable to frontier-written ones.
+
 ### 4.2 Management by exception
 
 Routine, within-tolerance events do not require PM inference. Wake the PM only for decision-worthy situations, such as failed acceptance gates, repeated timeout, blocked critical dependency, conflicting changes, milestone forecast breach, insufficient resources, or a potential scope deviation. The workflow engine handles normal transitions deterministically.
@@ -170,13 +175,86 @@ Routine, within-tolerance events do not require PM inference. Wake the PM only f
 | 2: Architectural | Break approved architectural constraint, choose major substitution | Frontier architect with recorded decision |
 | 3: Product | Alter intended behavior, delivery scope, security/privacy promise, accepted tradeoff | Human, optionally advised by frontier architect |
 
-Explicitly store approver, decision, rationale, affected requirements, and revised baseline. If frontier access is unavailable, pause only work that truly requires that approval; continue unrelated work.
+Explicitly store approver, decision, rationale, affected requirements, and revised baseline. If frontier access is unavailable, pause only work that truly requires that approval; continue unrelated work. Approval requests carry an expiry; an expired request returns the package to the PM as an exception rather than waiting indefinitely.
+
+### 4.4 Every intelligence has a voice: Request → Assess → Commit
+
+No specialist begins substantial work until it has been asked what it thinks of the request and an explicit commitment has been recorded. The PM does not issue "implement X in 20 minutes." It says: here is the outcome, the context, the acceptance criteria, and a proposed timebox — what do you think, and are you prepared to take this on?
+
+This is deliberate, and it mirrors how the human works with Claude and Codex: asking "what do you think of this design, would you implement it as is?" rather than "implement file X." In practice, intelligences that are given autonomy over whether and how to take on work produce better first-attempt results. The voice is the point; the calibration record (§4.5) is what keeps the voice honest.
+
+**Protocol:**
+
+1. **Request:** PM (or contract author) proposes outcome, context packet, acceptance criteria, and timebox.
+2. **Show the track record:** the specialist's calibration summary for this task class is placed in front of it *before* it assesses (§4.5).
+3. **Assess:** the specialist examines feasibility, uncertainty, dependencies, and its own fit.
+4. **Respond** with one of:
+
+| Response | Meaning | Next step |
+|---|---|---|
+| Ready | I expect to deliver within these constraints | Commit as proposed |
+| Counterproposal | I can do this with a different timebox or approach | PM accepts or rejects (one round) |
+| Decompose | This should be split into smaller verifiable goals | Back to contract author |
+| Clarify | Important information is missing | Back to contract author, with the questions |
+| Decline | I am not the right choice for this | Re-route to another eligible model |
+
+5. **Commit:** the agreed contract (proposal + assessment + any accepted counter) is hashed and recorded; execution begins.
+6. **Review:** independent evidence, not the commitment, determines whether the work was delivered.
+
+Every response also carries a structured estimate: `expected_minutes`, `confidence` (0–1), and `risks`. These feed calibration.
+
+**Declining is not failure.** A specialist that recognizes a poor fit before spending the execution budget has saved the organization time. Declines are never penalized in routing; only *mis-calibration* is (§4.5).
+
+**Bounds (so deliberation can't become the new infinite loop):**
+
+- Assessment has its own small time and token budget. Run it in the same model session as execution where possible (context packet first, then the assessment prompt, then the committed contract), so the prefix cache is shared and assessment costs one short generation.
+- At most **one** counterproposal round. After it, the PM deterministically accepts, re-routes, or returns the package to the contract author.
+- Declines from two eligible models mean the contract is the problem: escalate to the contract author instead of trying a third model.
+- A counterproposal on timebox or approach is Tier 1 (PM decides). A counterproposal that touches acceptance criteria, locked probes, or scope goes through the approval tiers like any other change. Negotiation can never weaken the work's own grading.
+- An unparseable or missing assessment is recorded as **unassessed**; the PM's proposal proceeds. Consistent with §7.2, model output formats are hints, not control-plane prerequisites.
+
+**Reciprocity.** The PM must be prepared to change its plan when a specialist supplies better information. The manager can be wrong about the task, the specialist about its capabilities, the verifier about the implementation. Every claim stays open to evidence.
+
+### 4.5 Calibration memory: every voice has a track record
+
+Self-assessment is weak evidence, especially from small local models, which lean toward "Ready." The fix is not to silence the voice but to give it, and the PM, a memory of how past assessments turned out.
+
+**What is recorded** (durable, in the ledger, per assessment): actor (model + harness + prompt-template version), role, task class, response, stated confidence, estimate, risks named, and once known, the verified outcome and actual time.
+
+**Outcome quadrants** for each committed attempt:
+
+| | Verified success | Verified failure |
+|---|---|---|
+| **Confident** (Ready, confidence ≥ threshold) | calibrated | **overclaim** |
+| **Uncertain** (low confidence or risks flagged) | underclaim | calibrated warning |
+
+Declines are tracked separately: a decline followed by another model succeeding on the same contract is a possible underclaim; a decline followed by Decompose/Clarify being validated is a good call.
+
+**Derived scores** per actor × role × task class:
+
+- success rate with sample size (`n`);
+- overclaim rate and underclaim rate;
+- calibration error (e.g. Brier score of stated confidence vs outcome);
+- estimate ratio (actual time / estimated time), which also calibrates future timeboxes;
+- whether named risks were the ones that actually caused failure.
+
+**Shown before assessment.** The specialist sees its own record — the "yeah, but…" — before it answers:
+
+> Your record on `elixir/test-fix` tasks: 9 committed, 6 verified successes. 2 of the 3 failures were stated at confidence ≥ 0.8. Your estimates run 1.6× short on average.
+
+This is information, not punishment. Below a minimum sample (initially `n < 5`) the summary says "insufficient history" instead of a number.
+
+**Used by the PM.** Routing, timeboxes, and contract size use the record, not the stated confidence alone. A frequent overclaimer gets smaller contracts and longer timeboxes; a frequent underclaimer may need better context or a different decomposition.
+
+**Applies to everyone, including the PM and the verifier.** The PM's estimates and contracts get a record (contracts later sent back for Decompose/Clarify, forecasts missed). The verifier gets one too: passes later contradicted at integration or UAT count as overclaims. Reciprocal humility requires that the manager is measured too.
+
+Calibration memory is **institutional memory**, not agent memory: it survives model restarts and context loss, and it is keyed by model *and* prompt-template version so a prompt change starts a fresh record.
 
 ---
 
 ## 5. Durable Domain Model
 
-Use a transactional project store (SQLite with WAL is acceptable for single-host launch) behind repository interfaces. The event log and materialized board can share the database, but all state transitions must be atomic and idempotent. Never treat a prompt history as the authoritative work ledger.
+Use a transactional project store (SQLite with WAL is acceptable for single-host launch) behind repository interfaces. Current state lives in state tables; every transition appends an audit event **in the same transaction**. This is state + audit log, not event sourcing: events explain history but are not replayed to derive state. All transitions are atomic and idempotent. Never treat a prompt history as the authoritative work ledger.
 
 **Entities (minimum useful schema):**
 
@@ -190,26 +268,53 @@ Use a transactional project store (SQLite with WAL is acceptable for single-host
 - `RiskIssue`: risk vs realized issue, owner, probability/impact or severity, trigger, mitigation, linked packages, status.
 - `Event`: unique ID, aggregate, sequence/version, timestamp, cause, payload, correlation and idempotency keys.
 - `ModelCapability`: model/harness ID, supported role/task types, context limits, memory/compute needs, local endpoint, quality and reliability observations.
+- `Assessment`: package ID, actor (model + harness + prompt-template version), role, task class, request hash, response (ready/counterproposal/decompose/clarify/decline/unassessed), confidence, estimate, risks, counterproposal body, PM disposition.
+- `CalibrationRecord`: derived per actor × role × task class: n, success rate, overclaim/underclaim rates, calibration error, estimate ratio. Rebuildable from `Assessment` + `Attempt` outcomes, so it is a projection, not a second source of truth.
 - `WorkspaceLease`: task/worktree, lock scope, lease owner, lease expiry, fencing generation.
 
-**Relationships:** requirement → deliverables → packages → attempts → code/test evidence → decisions → acceptance. Preserve this lineage in the ledger even if the knowledge graph is later rebuilt.
+**Relationships:** requirement → deliverables → packages → assessments → attempts → code/test evidence → decisions → acceptance. Preserve this lineage in the ledger even if the knowledge graph is later rebuilt.
 
-### 5.1 State machine
+### 5.1 State machines: package and attempt are separate
+
+A work package and an attempt have different lifecycles. A package can be IN_PROGRESS while attempt 2 of 3 is running; conflating them makes that unrepresentable. The **package machine** reacts to **attempt outcomes**; attempts never change package state directly.
+
+**Work package:**
+
+| From | To | Trigger |
+|---|---|---|
+| PROPOSED | REFINED | contract drafted with locked probes |
+| REFINED | ASSESSING | request sent to an eligible specialist (§4.4) |
+| ASSESSING | COMMITTED | Ready, accepted counterproposal, or unassessed |
+| ASSESSING | ASSESSING | Decline → re-route to the next eligible model (max 2 models) |
+| ASSESSING | REFINED | Decompose / Clarify, or two declines |
+| COMMITTED | IN_PROGRESS | attempt created |
+| IN_PROGRESS | REVIEW_READY | attempt ends `SUCCEEDED_CANDIDATE` and mechanical checks pass |
+| IN_PROGRESS | DIAGNOSIS | attempt ends `INCOMPLETE` / `FAILED`, or mechanical checks fail |
+| REVIEW_READY | VERIFYING | independent verifier assigned |
+| VERIFYING | ACCEPTED / DIAGNOSIS | verification pass / fail or uncertain-beyond-tolerance |
+| ACCEPTED | INTEGRATING → INTEGRATED → CLOSED | serialized integration, regression evidence recorded |
+| INTEGRATING | DIAGNOSIS | conflict or regression failure |
+| DIAGNOSIS | COMMITTED | materially revised contract or inputs, attempts remaining |
+| DIAGNOSIS | REFINED | contract problem (decompose / clarify) |
+| DIAGNOSIS | ESCALATED | attempt cap reached, or Tier 2/3 decision needed |
+| ESCALATED | REFINED / COMMITTED / CANCELLED | recorded decision |
+| any non-terminal | BLOCKED → prior state | dependency or approval wait, then cleared |
+| any non-terminal | CANCELLED | authorized human/PM action |
+
+Terminal: CLOSED, CANCELLED.
+
+**Attempt:**
 
 ```text
-PROPOSED → REFINED → READY → LEASED → RUNNING → RECONCILING
-                                 ↘ timed out / crashed ↘
-                        DIAGNOSIS ← INCOMPLETE / FAILED
-                                      ↓
-RECONCILING → REVIEW_READY → VERIFYING → ACCEPTED → INTEGRATING
-                   ↖ changes needed ←   ↓            ↓
-                                       REJECTED   INTEGRATED → CLOSED
-
-Any phase → BLOCKED (dependency/approval)
-Any phase → CANCELLED (authorized human/PM action)
+CREATED → LEASED → RUNNING → RECONCILING → SUCCEEDED_CANDIDATE | INCOMPLETE | FAILED
+                      │
+                      ├─ deadline → TERMINATING → RECONCILING (exit_reason = timeout)
+                      └─ crash    → RECONCILING (exit_reason = crash)
 ```
 
-Implement legal transitions and authorization checks as a table-driven state machine. Add a transition audit event in the same transaction as the state change. A task is only **CLOSED** after integration and required evidence, not because a process exited.
+`SUCCEEDED_CANDIDATE` only means "produced a diff worth verifying"; it never implies acceptance. An attempt **always** passes through RECONCILING, whatever the exit path. When a package goes BLOCKED or CANCELLED with a live attempt, the attempt is cancelled through the normal TERMINATING → RECONCILING path and its workspace preserved.
+
+Implement both as table-driven state machines with authorization checks, and append the transition audit event in the same transaction as the state change. A package is only **CLOSED** after integration and required evidence, not because a process exited.
 
 ### 5.2 Event semantics
 
@@ -223,9 +328,9 @@ Record baseline revision, observed worktree fingerprints (including untracked fi
 
 ### 6.1 Desired context architecture
 
-Preserve the existing useful approach: EmbeddingGemma 2 for code/doc embeddings, a vector backend such as Qdrant, parsed code structure via Tree-sitter, and a graph of relevant source relationships. The long-term graph adapter may use Ladybug. Keep source graph and work ledger logically distinct even when interoperable.
+Source awareness is **Trailblazer's job**; Resonant consumes it through `ContextProvider`. Trailblazer already combines EmbeddingGemma embeddings, Tree-sitter parsing, a relationship graph, and vector search, with scout/ranger for retrieval and verification. Resonant does not rewire those internals. It specifies what it needs from them (below) and adapts Trailblazer where it falls short. Keep source graph and work ledger logically distinct even when interoperable.
 
-**Source index fields:** repository and revision, path, language, AST node/symbol, byte/line span, content hash, embedding version, provenance, index generation, relationships (import/call/define/reference/test/doc when supported), parse/index status, confidence.
+**What Resonant requires of each answer** (Trailblazer adaptations where missing): repository and revision, path, language, AST node/symbol, byte/line span, content hash, embedding version, provenance, index generation, relationships (import/call/define/reference/test/doc when supported), parse/index status, confidence.
 
 **Retrieval flow:**
 
@@ -243,9 +348,9 @@ The index need not infer complete runtime behavior. It must instead distinguish 
 
 The architecture must accommodate enormous, messy, pre-existing repositories eventually. Achieve this with incremental ingestion keyed by content hash, bounded batch sizes, backpressure, sharding/partition boundaries, selective graph traversal, index-version metadata, and the ability to rehydrate from Git. **Do not promise full billion-line indexing in week one.** Demonstrate correct incremental updates, changed-file invalidation, and retrieval provenance on a representative repository.
 
-### 6.3 Ladybug decision
+### 6.3 Graph backend (Ladybug) belongs to Trailblazer
 
-Ladybug is a plausible future graph engine because it provides an embedded property graph and Cypher support. Its documented concurrency model permits one active read-write `Database` object per database file; design a **single graph owner process** or supervised service rather than multiple unrelated writers. If NIF integration is selected, assess VM crash risk; an external supervised sidecar provides stronger fault isolation. Do not make Ladybug a mandatory critical-path dependency if binding stability or migration validation would threaten delivery. Implement `GraphIndex` as a port and document the selected adapter.
+Trailblazer's planned move to LadybugDB is Trailblazer's decision and does not block Resonant: Resonant depends only on `ContextProvider`. Constraints that matter if Trailblazer adopts it: Ladybug permits one active read-write `Database` per file, so Trailblazer needs a single graph owner; and an embedded NIF risks crashing the BEAM, so if Resonant ever hosts the graph in-VM, prefer a supervised sidecar.
 
 Source: https://docs.ladybugdb.com/concurrency/ ; https://ladybug-ex.hexdocs.pm/readme.html
 
@@ -263,7 +368,9 @@ Each work package must satisfy:
 - **Relevant:** links to a parent deliverable/requirement.
 - **Time-bound:** separate per-attempt execution budget and project milestone target.
 
-No execution begins without a valid contract and available dependencies. When tests cannot conclusively prove a property, record the verification method and residual uncertainty rather than inventing certainty.
+**Acceptance probes are locked.** Probes are authored with the contract (by the contract author or Designer), before implementation, stored **outside** the engineer's `allowed_paths`, and pinned by content hash in the contract. The engineer may add tests of its own, but the gate runs the locked probes. An engineer that can edit the tests that grade it has nothing to be graded against.
+
+No execution begins without a valid, **committed** contract (§4.4) and available dependencies. When tests cannot conclusively prove a property, record the verification method and residual uncertainty rather than inventing certainty.
 
 Example:
 
@@ -278,15 +385,24 @@ workspace: "worktrees/AUTH-042"
 timebox_seconds: 1200        # illustrative; calibrate using observed history
 allowed_paths:
   - "src/auth/**"
-  - "test/auth/**"
+  - "test/auth/**"            # engineer may add its own tests here
 acceptance:
   - id: A1
     type: command
-    run: "mix test test/auth"
+    run: "mix test .resonant/probes/AUTH-042/expired_token_test.exs test/auth"
+    locked_files:            # outside allowed_paths; hash-checked before the gate runs
+      - path: ".resonant/probes/AUTH-042/expired_token_test.exs"
+        sha256: "<hash>"
     expectation: "exit_code == 0"
   - id: A2
     type: review
     expectation: "Expired token rejected; valid token still accepted"
+commitment:                  # filled by §4.4; part of the contract hash
+  assessed_by: "<model>@<harness>/<prompt-template-version>"
+  response: ready             # or counterproposal (accepted), unassessed
+  confidence: 0.7
+  expected_minutes: 15
+  risks: ["token clock skew handling unclear"]
 constraints:
   - "No public API changes"
   - "No network access"
@@ -301,10 +417,10 @@ Paths and commands above are illustrative, not assertions about the actual proje
 
 The runner must:
 
-1. Obtain an atomic lease and task-specific worktree tied to the baseline.
-2. Select a model/harness by capability and available resources.
-3. Assemble a revision-stamped context packet and render a concise role-specific prompt.
-4. Launch the worker under supervision, with permission/network/resource limits.
+1. Start from a **committed** contract (§4.4): model/harness already selected by capability, calibration record, and available resources, and the assessment recorded.
+2. Obtain an atomic lease and task-specific worktree tied to the baseline.
+3. Assemble a revision-stamped context packet and render a concise role-specific prompt (reusing the assessment session's prefix where possible).
+4. Launch the worker under supervision, in its own cgroup, with permission/network/resource limits.
 5. Enforce a real deadline external to the model. On expiry, request graceful cancellation then forcibly terminate the process group after a short grace period.
 6. Always capture exit information and reconcile Git state, including uncommitted and untracked changes.
 7. Execute deterministic acceptance probes when safe; submit artifacts for independent verification.
@@ -391,20 +507,20 @@ ProjectStore           create/read/transition/append_event
 GitWorkspace           create/baseline/diff/status/commit/merge/cleanup
 WorkerRunner           start/cancel/terminate/inspect
 ModelRegistry          eligible_models/select/record_outcome
-ContextProvider        build_packet/invalidate/verify_freshness
-EmbeddingProvider      embed_batch/model_metadata
-VectorIndex            upsert/delete/search
-GraphIndex             upsert_edges/delete/traverse
-SourceAnalyzer         parse_symbols/relations
-VerificationRunner     run_checks/collect_results
+AssessmentService      request_assessment/record_response/resolve_counter
+CalibrationStore       record/summary_for(actor, role, task_class)/rebuild
+ContextProvider        build_packet/invalidate/verify_freshness   (Trailblazer adapter)
+VerificationRunner     run_checks/verify_locked_probes/collect_results
 PolicyEngine           authorize_transition/authorize_change
 ApprovalGateway        request_decision/record_decision
 EventPublisher         publish_reconcile_hint
 ```
 
+Embedding, vector, graph, and parsing concerns are behind `ContextProvider` inside Trailblazer, not separate Resonant ports.
+
 Use typed request/response contracts, stable IDs, version fields, idempotency keys, and explicit error types. Internal ports need not be remote services. Build a modular monolith first, with **separately supervised external workers** where needed; don't preemptively create dozens of services.
 
-**Worker adapters:** local llama.cpp-compatible endpoints, existing coding harnesses, and optionally a pair-programming bridge between Claude and Codex. External pair programming should fit the same work contract, audit, permissions, and evidence rules. It is an optional acceleration path, **not a dependency of autonomous local operation**.
+**Worker adapters:** the Engineer runs as an OpenCode-fork subprocess (`opencode run`) per attempt, backed by local llama.cpp-compatible endpoints. Analyst, Verifier, and Diagnostician may call the local model directly where no tool loop is needed. VORTEX carries frontier work (Claude/Codex) under the same contract, audit, permission, and evidence rules; it is an optional acceleration path, **not a dependency of autonomous local operation**.
 
 **Initial interface:** usable CLI plus a simple Kanban view, preferably Phoenix LiveView if already efficient in the chosen Elixir project structure. UI is a projection of the ledger, not another authority. Show project/milestone state, task state, assigned role, remaining time, latest evidence, blocker/exception, and approval actions.
 
@@ -438,7 +554,8 @@ Key outcome metrics:
 - Rate of missed/stale change notifications caught by reconciliation;
 - Unplanned human/frontier escalations and approval latency;
 - UAT defects and traceability completeness;
-- End-to-end comparison with a single local coding agent on the same tasks.
+- Calibration error and overclaim rate per model/role/task class, and whether showing the track record before assessment reduces them over time;
+- End-to-end comparison with a single local coding agent on the same tasks. This baseline is captured from the **first** real run, not saved for Day 7: if `opencode run` plus locked probes in a worktree delivers most of the value, that should reshape priorities early.
 
 The optimization target is **reliable delivered outcomes**, not token volume, number of agents, or a permanently busy GPU.
 
@@ -448,21 +565,23 @@ The optimization target is **reliable delivered outcomes**, not token volume, nu
 
 **Definition of week-one success:** A person can point Resonant at an existing Git repository, provide a Markdown feature/bug specification, review a generated charter and SMART work package, execute a bounded local coding task, observe real file changes and a runner exit, see independent verification, recover from timeout/crash, integrate an approved patch, and export a traceable UAT packet. This must work without Claude, Codex, OpenRouter, or any paid API.
 
-The plan is sequenced by risk and vertical completeness. Adjust daily based on actual observations. Avoid broad parallel development until the event/state contracts are fixed.
+The plan is sequenced by risk and vertical completeness. Adjust daily based on actual observations. Avoid broad parallel development until the state/contract schemas are fixed. The week is feasible **because** context (Trailblazer), the engineer harness (OpenCode fork), process supervision (Homer), and the frontier channel (VORTEX) are adapted, not built; most new code is the ledger, state machines, runner/reconciler, assessment/calibration, and gates.
 
 | Day | Primary outcome | Demonstrable acceptance |
 |---|---|---|
-| **1** | Repo discovery and ADRs; greenfield project skeleton; ledger/state machine; external worker contract | Transition tests, project creation, durable event replay after restart |
-| **2** | Git worktree lifecycle; runner supervision and hard timeouts; observability | Task executes, timeout kills process tree, exit never auto-accepts |
-| **3** | SMART contract intake; model adapter; context packet service with provenance | One local worker receives correct revision-grounded evidence and modifies an isolated worktree |
-| **4** | Deterministic verification plus independent reviewer adapter; failure/postmortem states | Pass/fail/uncertain outcomes; failed task cannot self-close; distinct remediation path |
-| **5** | Delivery Manager exception handler; Kanban CLI/simple UI; integration gate | PM invoked only on exceptions; accepted patch integrates with regression evidence |
-| **6** | UAT export, approval tiers, restart recovery, multi-task dependency test | End-to-end run and persisted recovery demonstrably work offline |
-| **7** | Hardening, docs, baseline benchmark, usability pass, packaging | Reproducible installation/demo and comparison against single-agent baseline |
+| **1** | Discovery of owned components; ADRs (ledger, Homer relationship, runner isolation, compute budget); project skeleton; ledger with package + attempt state machines | Transition tests for both machines; state survives restart |
+| **2** | Worktree lifecycle; cgroup-based runner with hard timeouts; reconciliation on every exit path; observability | Timeout kills the whole tree; exit never auto-accepts; silent/no-op/crash exits reconcile correctly |
+| **3** | Contract intake with locked probes; Trailblazer `ContextProvider` adapter with revision stamps; OpenCode engineer adapter; first real run | Local worker modifies an isolated worktree from revision-grounded context; **single-agent baseline captured** |
+| **4** | Assess → commit protocol (Ready/Decompose/Clarify/Decline + timebox-only counter); calibration store and pre-assessment summary; deterministic verification + independent reviewer | Bounded assessment; counters can't touch acceptance; failed task cannot self-close |
+| **5** | Diagnosis/postmortem states; PM exception handler; CLI Kanban; integration gate | PM invoked only on exceptions; accepted patch integrates with regression evidence |
+| **6** | UAT export, approval tiers (CLI `decide`), restart recovery, multi-task dependency test | End-to-end offline run; recovery without duplicate work or fabricated success |
+| **7** | Hardening, docs, benchmark vs baseline, usability pass, packaging | Reproducible install/demo; calibration and baseline numbers reported honestly |
 
 ### 12.1 P0: must ship for a credible system
 
-- Elixir/OTP supervision and durable ledger, state machine, explicit policy boundaries.
+- Elixir/OTP supervision and durable ledger, package + attempt state machines, explicit policy boundaries.
+- Request → assess → commit for every substantial task, with calibration memory shown before assessment.
+- Locked acceptance probes outside engineer scope.
 - Git-aware worktrees, process exit/timeout detection, deterministic reconciliation.
 - One working local model harness/adapter; typed task contracts.
 - Context retrieval from existing indexing assets or a minimal compatible adapter with revision provenance.
@@ -475,15 +594,17 @@ The plan is sequenced by risk and vertical completeness. Adjust daily based on a
 
 - More specialist model adapters and capability-based dynamic routing.
 - Phoenix LiveView board with risk/milestone insights.
-- Ladybug graph service when its real concurrency and crash behavior are validated.
+- Trailblazer adaptations beyond the minimum (richer staleness signals, test-to-code links) as Resonant usage reveals gaps.
 - Additional graph/work-trace links, stronger risk scoring, more comprehensive metrics.
-- Optional Claude/Codex collaborative worker adapter.
+- VORTEX-backed Claude/Codex collaborative worker adapter.
+- Approach counterproposals (week one allows timebox-only counters).
+- Local PM taking over decomposition for task classes where its calibration record supports it (§4.1).
 
 ### 12.3 P2: architecture must support, not necessarily implement this week
 
 - Billion-line multi-partition index, distributed work scheduling, multi-host execution.
 - Autonomous resource-market scheduling and sophisticated cost forecasts.
-- Full vector/graph consolidation if benchmarking warrants it.
+- Calibration-driven automatic contract sizing and timebox setting.
 - Organization-wide collaboration and advanced multi-project portfolio management.
 
 **Scope rule:** When short on time, cut breadth, not invariants. Do not replace durable state with chat context; do not disable deadlines, provenance, permission gates, or review to claim completeness.
@@ -506,7 +627,13 @@ Implement these as automated integration tests where practical, plus a clearly d
 10. **Restart recovery:** OTP app or host is interrupted mid-attempt; startup reconciles leases, processes, and worktrees without duplicate work or fabricated success.
 11. **Governance:** requested product-scope change becomes an approval request; no unapproved execution of the new requirement.
 12. **Offline:** normal local planning/execution/test/integration uses no external API and does not require cloud credentials.
-13. **Provenance:** every accepted package can be traced to requirement, contract, attempt, exact Git revision/diff, test results, and reviewer decision.
+13. **Provenance:** every accepted package can be traced to requirement, contract, assessment, attempt, exact Git revision/diff, test results, and reviewer decision.
+14. **Locked probes:** engineer modifies a locked probe file; hash check fails the gate and records a scope violation.
+15. **Bounded assessment:** specialist counterproposes twice, or exceeds the assessment budget; PM resolves deterministically after one round.
+16. **Counter can't weaken grading:** a counterproposal that alters acceptance criteria becomes an approval request, not a contract change.
+17. **Unassessed path:** model returns an unparseable assessment; package proceeds as `unassessed` and calibration records the gap.
+18. **Calibration loop:** a confident (≥ threshold) commitment that fails verification is recorded as an overclaim, and the next assessment prompt for that actor/task class shows the updated record.
+19. **Double decline:** two eligible models decline; package escalates to the contract author rather than trying a third.
 
 **Gate:** The product is not "done" just because these cases have stories or UI mockups. Show tests, actual logs, and a reproducible demonstration.
 
@@ -550,13 +677,13 @@ Do not force an umbrella app for a small codebase, but do not collapse modules i
 
 ### First actions
 
-1. Inspect the provided repository/repositories and inventory existing watcher, embedder, source graph, model adapters, planner, git-bug, worktree, and UI components. **Do not assume** any particular component is present or functional without inspection.
-2. Create a concise `REUSE_DECISIONS.md` table (reuse / adapt / replace / defer), with reasons and risks.
+1. Inspect the owned components listed in §2.2 (Trailblazer, scout/ranger, planner, OpenCode fork, VORTEX, Homer) and confirm their current paths, versions, and protocols. **Do not assume** a component behaves as described here without inspection.
+2. Create a concise `REUSE_DECISIONS.md` recording, per component, the adaptations Resonant needs (default: adapt; replace only with an ADR).
 3. Produce an architecture ADR for the canonical work ledger, graph backend, runner isolation, and model adapter protocol. Confirm decisions against actual runtime/library compatibility.
 4. Establish the schemas, state machine, and cross-component contracts *before* implementing parallel features.
 5. Build and demonstrate the first vertical slice as soon as possible, then expand deliberately.
 6. Maintain an honest `DELIVERY_STATUS.md` listing working functionality, test evidence, known defects, deferred functionality, and next actions.
-7. Use paired programming where available **only through the actual existing bridge after inspection**; avoid presuming how it works.
+7. Use paired programming through VORTEX, inspecting its current protocol first.
 
 ### Implementation conduct
 
@@ -588,15 +715,18 @@ Do not force an umbrella app for a small codebase, but do not collapse modules i
 
 The implementors should select reasonable defaults and record short ADRs for these:
 
-1. **Canonical ledger implementation:** SQLite schema/event store layout and migration tooling.
-2. **Git-bug:** optional synchronization/import-export versus abandoning it entirely in the core.
-3. **Graph backend:** Ladybug sidecar vs safe current SQLite graph adapter while validating Ladybug; avoid premature NIF risk.
-4. **Vector strategy:** continue Qdrant, or unify graph and vector only after a local benchmark shows a clear win.
-5. **Model execution protocol:** existing local runtime compatibility, role prompts, and tool/action envelope.
-6. **Sandboxing:** choose the safest practical local OS/container runner with reliable process-group cancellation.
-7. **UI:** CLI-only versus minimal LiveView during initial hardening.
-8. **Parallelism:** begin conservatively; increase only with worktree conflict management and resource measurement.
-9. **Optional pair bridge:** how to represent the existing Claude/Codex collaboration as a governed worker without bypassing local-only guarantees.
+1. **Canonical ledger implementation:** SQLite schema (state tables + same-transaction audit log) and migration tooling.
+2. **Homer relationship:** new OTP application alongside Homer, or a supervised subtree within it.
+3. **Git-bug:** sync/export depth with the planner (the global commit-message rule already depends on it).
+4. **Compute budget:** resident models, role-switch cost, realistic concurrency on the host.
+5. **Model execution protocol:** OpenCode-fork invocation, role prompts, assessment prompt, and prefix-cache reuse between assessment and execution.
+6. **Sandboxing:** cgroup-per-worker via `systemd-run --user --scope` versus a container runner; must guarantee whole-tree kill.
+7. **Calibration parameters:** task-class taxonomy, confidence threshold for "confident," minimum `n` before showing numbers, decay of old records.
+8. **UI:** CLI-only versus minimal LiveView during initial hardening.
+9. **Parallelism:** begin conservatively; increase only with worktree conflict management and measured compute headroom.
+10. **VORTEX as worker:** representing Claude/Codex collaboration as a governed worker without bypassing local-only guarantees.
+
+Graph backend and vector strategy are no longer Resonant decisions; they belong to Trailblazer (§6.3).
 
 Do **not** turn these into obstacles to the vertical slice. Document the chosen direction and preserve reversibility where justified.
 
