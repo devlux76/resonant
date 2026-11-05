@@ -177,3 +177,28 @@ Same contact task, oracle v2, 8 turns, 1h limit, harness `run-ab.exs`, evidence 
 | Bolt E4B Q4, t=0.6 | text SEARCH/REPLACE | **pass x3**, 2 turns each, ~45-85s generation; diffs match the reference and keep every constraint |
 
 - Lesson: for small local coders the JSON range/digest/quote tool is a heavy format tax (Bolt 0 applied vs pass), and Spark trails Bolt on this task even in text format. Candidate direction: Bolt as coder with text SEARCH/REPLACE (Trailblazer already parses it) once its serving is fixed. n=3 on one task, not a general benchmark.
+
+## Addendum 2026-11-05 afternoon (Claude): real-loop coder baselines and the harness bugs behind them
+Same contact task, oracle v2, neutral request, real Trailblazer loop (3 attempts, 15 min/call). Evidence: `harness-comparison/ab/loop2-*`.
+
+| Coder | Edit mode | Result |
+|---|---|---|
+| Nemotron-3.5-Bolt-E4B (Unsloth, effectively Q5_K_M) | text | check+review PASS (the commit was then blocked only by the >255-char subject bug, now fixed); diff matches the reference |
+| Bolt | tool (JSON ranges) | fail: no blocks |
+| Spark-X2.6-4B Q8 | tool + flat `edit` | fail: edits apply, logic wrong x3 |
+| Lucet-Coder-4B-Omega Q4_K_M (Spark finetune, "uncensored") | tool | fail: only ever the import |
+| LFM3-1.7B | tool | fail: edits never applied, timeouts |
+| LFM2.5-24B-A2B Q4_K_M (whole machine) | tool | fail: invents absolute paths (`/home/mirai/workspace/...`), never re-reads, guessed SEARCH misses |
+| LFM2.5-24B | text | fail: 17 KB of reasoning per call despite enable_thinking=false (the template ignores the flag); needs a hard reasoning budget, not a flag |
+
+Harness bugs found and fixed (each reviewed by an Opus subagent, deployed):
+- retries reset to base while feeding back errors from the edited file, so models fixed code that no longer existed -> retries continue from the model's own edits (check mutations still discarded);
+- no plain-text edit path -> `edit_mode: text` (SEARCH/REPLACE reply; small named files sent whole);
+- code only travelled JSON-escaped -> flat `edit(path, search, replace)` tool (Spark's native spark25 format carries strings raw);
+- a long request subject discarded passing work -> subject shortened, bug refs kept;
+- reading an invented absolute path gave no guidance -> "did you mean <repo-relative path>?";
+- the trail admitted every unembedded node (the vector store omits them; default sim 0.5 > floor) -> unscored nodes only as seeds or direct neighbours (the live contact.ts trail was 76 items / 16 KB, mostly unrelated).
+
+Speed (matched: our build, 3.6k-token prompt, cache off), prefill/gen tok/s: Spark Q8 24/4.0, Lucet Q4 27/5.6, Bolt 27/5.1, LFM2.5-24B-A2B 52/10.6. Spark is not uniquely slow; every 4B dense model is far below the operator-recalled double digits (llama.cpp:9107dda).
+
+Lesson: format and harness defects dominated "model quality" until they were fixed. After fixing, a general instruction-following model (Bolt) beat the coding-branded one (Spark) on this small edit. Next: harness-wide outcome memory (recall only, preseeded with successes) feeding trails; a reranker filter for the trail.
