@@ -2,6 +2,12 @@
 
 This is measured input to Resonant's design, not authorization to implement it or change the assigned models. The operator calls the desired experience FIM-like: a small, focused code edit should not require a large agent conversation. This trial uses native JSON range edits, not a model's native fill-in-middle tokens/objective. Compatibility with a true FIM protocol needs separate qualification.
 
+## Model and quantization provenance
+
+All trials here used **XHToken/Spark-X2.6-4B-GGUF, target Q8_0**, served as `spark-x2.6-4b:q8-dspark`, with the DSpark **BF16 draft** (precision per vendor card), greedy speculative sampling and n_max7. The target file SHA-256 `145c2aa606820663f26ad530b8fc141ed885e2e9ca29f9be7c3bfe8931d58b81` was verified against the vendor; a separate local draft hash was not recorded. Runtime: XHToken/llama.cpp `22c0ae1871b60123c5afc008a78fe9c6fffa2858`, CPU6threads, context131072. Per-trial `*-configuration.json` companions and `experiment-configuration.json` preserve exact settings beside the original result files without rewriting those results.
+
+**Scope of conclusions:** these are results for this model, quantization, runtime and harness—not a claim about all code models or FIM-trained models. Another model or quantization could behave differently; no cross-model or cross-quant accuracy comparison was performed.
+
 ## Task and comparison oracle
 
 The task is a31-line TypeScript contact module. A suffix-only `/p2p/<peer>` check accepts malformed addresses. The required change uses the existing multiaddr parser, validates its bytes and final peer component, and preserves limits, strings, protobuf handling and browser compatibility. The reference patch adds one import, a small validation block and two negative tests. In an isolated checkout the new tests fail on original code; the reference typechecks and passes88focused tests. It is reference-only and was not fed to Spark or merged.
