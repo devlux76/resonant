@@ -69,3 +69,12 @@ The approximately one-minute prefill target is an operator goal on this box, not
 Local evidence: `~/.local/state/trailblazer-dispatch/harness-comparison/` (messages, progress, partials, finalfocused result/release/checkpoint) and `model-research-reference/` (findings, reference.patch, RED/GREEN logs). Source base `ae973448`; deployed tool `8749605`. Issues Trailblazer:e2e2ab5/9ae2ace and VORTEX:fdf15bf/c581381.
 
 [Model card](https://huggingface.co/XHToken/Spark-X2.6-4B), [DSpark instructions](https://huggingface.co/XHToken/Spark-X2.6-4B-DSpark-GGUF/blob/main/README.md), [pinned budget implementation](https://github.com/XHToken/llama.cpp/blob/22c0ae1871b60123c5afc008a78fe9c6fffa2858/tools/server/server-common.cpp#L1514), [template](https://huggingface.co/XHToken/Spark-X2.6-4B/blob/main/chat_template.jinja).
+
+## Repairs queued for Claude
+
+The operator classified the cache/restart findings as spec or implementation bugs and assigned follow-up to Claude when available. No repair has started:
+
+- **trailblazer:95b9b73**: qualify and repair production prompt-cache reuse across read/submission and retries. Normal second-call logs show zero cached tokens; the changed toolset can invalidate the prefix. Intentional cold-cache comparison runs are separately labelled and should not be mistaken for production policy. Preserve the sole-edit tool restriction and resource fencing.
+- **trailblazer:6ff32b2**: specify and qualify interrupted-generation continuation versus fresh-context restart. Preserved partial reasoning is not currently resumed; outbound reasoning omission and effective thinking-budget accounting need investigation. Prefix caching alone does not continue generation. Do not replay incomplete tool calls, silently extend timeboxes, or assume optional reasoning preservation is universally appropriate.
+
+Acceptance requires actual model/quant/runtime-specific cache and completion measurements, safe invalidation, preserved unfinished work and updated specs. Both cards remain queued/parked for Claude; no wake, model run or new subsystem is authorized by this note.
