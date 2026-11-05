@@ -21,7 +21,15 @@ Only this diagnostic packet was compacted; the production retrieval path was not
 Measured input:991tokens, cache0, prefill44.865seconds (first-token latency and code correctness are separate metrics). This meets the operator's approximately one-minute prefill target; it does not yet establish a successful edit.
 
 <!-- FINAL_OUTCOME_BEGIN -->
-Code outcome pending. The native documentation finalizer will replace this block from the recorded final result without starting any model work.
+Final outcome: **compilation failed; no integration.** The cold input was991tokens; prefill took44.865seconds and first generated token arrived at48.589seconds. The model returned one valid native edit call in800.162seconds (13minutes20seconds), using4145completion tokens including reasoning/tool output. This meets the prefill goal but not the working-code goal.
+
+The proposed replacement removed the function's closing brace (`TS1005: '}' expected` at contact.ts:42). It also treated the peer-ID string as a network address via `multiaddr(peer)` and compared component objects instead of the required final p2p peer value. These mistakes exist in the model's saved edit arguments before tool application. The compiler stopped verification; the full tests and two negative acceptance assertions did not run. No compiling checkpoint was falsely claimed.
+
+Preserved failed candidate tree: `59c71f5b404b09e10d49a84075892ffee0bd7b51`; worktree `harness-fdf-20261104-finalfocused`. Automatic Git-bug report: `vortex:28e1358`. The full native reply, input, metrics, compile output and notification receipt are in `harness-comparison/finalfocused-*.json`. The direct callback was host-admitted (`delivery=started` with a turn ID).
+
+Native supervision exited0 and resource release was confirmed. Fresh runtime verification found no open cases, active worker, queued task, resource lease or dispatch profile. OpenCode/tick are stopped; progress automation remains paused. The operator ordered parking until Claude is available; there is no retry, new admission, deployment or integration authorized by this result.
+
+Interpretation: excess prompt data was a real, removable prefill cost. Removing it did not make this sample's generated code correct. One final request does not identify every remaining cause or prove that the model is generally incapable. The requested2048reasoning budget is recognized by the vendor implementation, but separate effective reasoning-token accounting was not measured here;4145total completion tokens are not themselves proof that the thinking cap failed. Further format/model comparisons and production retrieval changes remain parked, with the independently verified reference patch available as an oracle.
 <!-- FINAL_OUTCOME_END -->
 
 ## Lessons to carry forward
