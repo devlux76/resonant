@@ -571,6 +571,8 @@ The operator chooses models based on performance **in the role and environment**
 
 Carry forward the existing screening evidence and preserve the current quantization, draft-model, runtime, sampling, and resource settings in versioned deployment records. Trailblazer's `config.ex`, `docs/design.md` §7.2, and `docs/local-planner.md` identify the Spark/Bolt baseline; verify configuration provenance during discovery without starting a new audition for those roles. Validate the new adapters and end-to-end integration against this baseline. Role-specific calibration may support a proposal to widen Spark/Bolt scope; only the operator authorizes that change. Unassigned responsibilities use deterministic tooling where adequate; model-backed work waits for an operator-approved local assignment or explicitly authorized frontier assistance. Do not silently expand an existing model's role or violate local-only operation to fill a gap. A demonstrated capability gap, measured regression, or material deployment change can justify recommending a replacement; the operator decides. Frontier-led planning and final human acceptance retain their existing boundaries.
 
+Measured Spark prompt/edit-harness lessons and the final controlled trial are recorded in [the2026-11-04 field note](docs/notes/2026-11-04-spark-harness-lessons.md). This evidence does not itself authorize new model assignments or implementation.
+
 Key outcome metrics:
 
 - Correctly accepted requirements per unit of wall time and per GPU-hour;
