@@ -38,6 +38,26 @@ Native supervision exited0 and resource release was confirmed. Fresh runtime ver
 Interpretation: excess prompt data was a real, removable prefill cost. Removing it did not make this sample's generated code correct. One final request does not identify every remaining cause or prove that the model is generally incapable. The requested2048reasoning budget is recognized by the vendor implementation, but separate effective reasoning-token accounting was not measured here;4145total completion tokens are not themselves proof that the thinking cap failed. Further format/model comparisons and production retrieval changes remain parked, with the independently verified reference patch available as an oracle.
 <!-- FINAL_OUTCOME_END -->
 
+## Additional controlled comparison: restore the detailed instructions
+
+The operator authorized one additional trial after the initial park. Only the task-description paragraph changed: the compressed510-character instruction was replaced by the original1836-character detailed source-only plan verbatim. The system prompt, original source and digest, edit schema, model/quantization, sampler/budgets and acceptance checks stayed unchanged. No prior model output or reference implementation was included.
+
+| Measurement | Compact description | Detailed original plan |
+|---|---:|---:|
+| Model / target quant | Spark-X2.6-4B / Q8_0 | Spark-X2.6-4B / Q8_0 |
+| Draft / runtime | DSpark BF16 / XHToken22c0ae18 CPU | DSpark BF16 / XHToken22c0ae18 CPU |
+| Input tokens, cold cache | 991 | 1,317 |
+| Prefill | 44.865 s | 104.967 s |
+| First generated token | 48.589 s | 108.670 s |
+| Total elapsed | 800.162 s | 900.053 s, hard timeout |
+| Complete output tokens | 4,145 | Unavailable after cancellation |
+| Delivered edit | Yes; compilation failed | No complete submission |
+| Compilation / acceptance tests | Compile failed; tests not run | Neither started |
+
+The detailed run preserved partial reasoning that discussed the correct parser/property/final-component approach, but produced no executable patch. That is not successful code generation or evidence that the task is solved. Restoring the detailed plan did not improve task completion within this single15-minute trial. These samples do not establish a general causal effect of prompt length or verbosity. Although model/settings were fixed, machine load and scheduling were not controlled; the observed per-token prefill rates also differed. No output-token total should be inferred from the cancelled stream's zero-valued usage placeholder.
+
+Evidence: `detailedfocused-comparison.json`, `detailedfocused-configuration.json`, the saved input/partial/error/result/release/notification artifacts and `progress.jsonl` in the harness-comparison directory. The native job exited0 and release returned`:ok`; fresh verification found no open cases, active worker, queued task, resource lease or profile. The workload and alarms are parked again. Further diagnosis, including effective thinking-budget enforcement, remains unproven and is deferred until coordination with Claude resumes.
+
 ## Lessons to carry forward
 
 Give explicit small edits one canonical contract and a bounded original-source window before broad retrieval. De-duplicate by provenance; distinguish hard requirements from operational history. Retrieve/rerank relevant evidence within a task-scaled budget rather than filling a fixed allowance; expose each section's token cost and relevance. Make the editing format match the model/runtime and expose only permitted actions. Measure prefill, generation, compilation, acceptance tests and independent review separately. Preserve incomplete work; commit compiling checkpoints even when tests fail and file linked failure reports. Arrange sender-labelled, work-linked caller callbacks at launch; status files/timers are backup, not the handoff.
