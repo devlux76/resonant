@@ -162,3 +162,18 @@ One feedback limitation remains: turn3 was given the tail of47 cascading failure
 - The qual oracle now prints `FAIL acceptance: ...` lines so the first-failure excerpt carries them (acceptance-v2.js).
 - qual5 (f06cadc, 8 turns, thinking off): 6/8 edits applied (1 correct relocation), and the 2 refusals were malformed (`end: 0`, empty quote). It still hit edit_turn_limit, stuck on TypeScript type errors (indexing a Multiaddr, `.at` on an iterable) and, in qual4, on parsing the whole contact as one multiaddr.
 - Lesson: the edit/feedback tooling now delivers the intended edits and the right failure. What remains is Spark-4B no-thinking's grasp of the task structure. The next lever is plan granularity (planner gives exact per-step edits) or model/thinking choice, not more harness repair for this failure.
+
+## Addendum 2026-11-05 (Claude): coder A/B: edit format and model, not throughput
+Same contact task, oracle v2, 8 turns, 1h limit, harness `run-ab.exs`, evidence `harness-comparison/ab/`.
+- Speculative decoding ruled out. Greedy replay of the qual5 turn-1 request gives byte-identical output on the fork+DSpark (:8096) and on upstream with no draft (:8094). DSpark gave no speedup (95.8s vs 94.1s).
+- Correction: CPU throughput does not explain the benchmark gap. The hour-long thinking run (above) had time and degenerated into repeated self-analysis. The fork enforces `reasoning_budget_tokens`, but the analysis continued in visible content, so bounded thinking would also need a total-output cap.
+- Planner brain on the iGPU (`mirai-bolt-igpu`, Vulkan, :8098) is broken: plain prompts end after 1 token and tool calls crawl. The same Nemotron-3.5-Bolt-E4B Q4 GGUF on upstream CPU (:8099, temporary) works at ~6.5 tok/s.
+
+| Arm (thinking off) | Edit format | Result |
+|---|---|---|
+| Spark Q8, t=1.0 (qual5) | JSON range tool | fail, 8 turns (6 applied, wrong logic) |
+| Spark Q8, t=1.0 | text SEARCH/REPLACE | fail, 8 turns (wrong logic, then format drift) |
+| Bolt E4B Q4, greedy | JSON range tool | fail, 0 edits applied (extra key, quote ranges, greedy cycling) |
+| Bolt E4B Q4, t=0.6 | text SEARCH/REPLACE | **pass x3**, 2 turns each, ~45-85s generation; diffs match the reference and keep every constraint |
+
+- Lesson: for small local coders the JSON range/digest/quote tool is a heavy format tax (Bolt 0 applied vs pass), and Spark trails Bolt on this task even in text format. Candidate direction: Bolt as coder with text SEARCH/REPLACE (Trailblazer already parses it) once its serving is fixed. n=3 on one task, not a general benchmark.
