@@ -349,6 +349,8 @@ Source awareness is **Trailblazer's job**; Resonant consumes it through `Context
 
 The index need not infer complete runtime behavior. It must instead distinguish directly observed syntax, inferred semantics, and unverified assumptions.
 
+**Packet for an Engineer that cannot read** (measured 2026-11-07, [overnight note](docs/notes/2026-11-07-overnight-dispatch-lessons.md)): what a small coder is not shown, it invents. The packet therefore carries (a) the declaration lines of every repository name the contract mentions; (b) for a file too long to send whole, a *ranged view* with real line numbers — header, the declarations the request names first, then the trail's ranges, plus an outline of the rest — under a hard line cap; (c) line numbers only where the Engineer may edit by line range. Before dispatch, refuse a package whose packet cannot be read in half the generation window; split it instead. Prompt size, not model choice, is the first lever on local prefill.
+
 ### 6.2 Scale design
 
 The architecture must accommodate enormous, messy, pre-existing repositories eventually. Achieve this with incremental ingestion keyed by content hash, bounded batch sizes, backpressure, sharding/partition boundaries, selective graph traversal, index-version metadata, and the ability to rehydrate from Git. **Do not promise full billion-line indexing in week one.** Demonstrate correct incremental updates, changed-file invalidation, and retrieval provenance on a representative repository.
@@ -374,6 +376,8 @@ Each work package must satisfy:
 - **Time-bound:** separate per-attempt execution budget and project milestone target.
 
 **Acceptance probes are locked.** Probes are authored with the contract (by the contract author or Designer), before implementation, stored **outside** the engineer's `allowed_paths`, and pinned by content hash in the contract. The engineer may add tests of its own, but the gate runs the locked probes. An engineer that can edit the tests that grade it has nothing to be graded against.
+
+Probes cover **every** outcome in the objective, including wiring, not only the new unit: a probe that a half-done change passes defers the catch to review (F26, 2026-11-07). A probe that fails must say why; a silent step (`test …`) is explained by the harness from its expanded values, never reported as a bare "failed".
 
 No execution begins without a valid, **committed** contract (§4.4) and available dependencies. When tests cannot conclusively prove a property, record the verification method and residual uncertainty rather than inventing certainty.
 
@@ -431,6 +435,8 @@ The runner must:
 7. Execute deterministic acceptance probes when safe; submit artifacts for independent verification.
 8. Persist outputs/links and release the lease, or enter failure diagnosis.
 
+**Output guards.** The runner reads the stream, not just the final reply: degenerate repetition (one line repeated tens of times) and a numbered source view copied back are stopped at once and cut, and the complete answer before them is used. Answer-format variants that carry the same meaning unambiguously (a write tool under another name, identical repeated blocks) are accepted; a shape whose intent must be guessed is refused with the exact correct form, never repaired by inference.
+
 Structured agent status messages are **optional hints**, not control-plane prerequisites. This is deliberate: smaller local models may omit tool calls or fail to report completion reliably at long context lengths.
 
 ### 7.3 Timebox vs milestone
@@ -457,7 +463,8 @@ On timeout, crash, failed test, review rejection, or repeated low-progress attem
 - Run automatic classification (infrastructure/transient, stale context, mistaken assumption, unmet dependency, model-capability mismatch, design/spec ambiguity, quality failure, resource shortfall).
 - Invoke Diagnostician only when deterministic classification is insufficient.
 - Permit one low-risk retry for demonstrated transient infrastructure failure by policy. Otherwise require a materially changed plan, input evidence, model, subtask boundary, or dependency state before retry.
-- Cap total attempts per work package and escalate when exhausted.
+- Cap total attempts per work package and escalate when exhausted. Operating default (operator, 2026-11-06): one-hour dispatches, at most three per package (~3 h); after the third the frontier finishes the package, closes it with evidence and moves on — never a fourth dispatch.
+- Every post-mortem ends in a **harness/tool fix** for what it exposed, validated on the next package, including the post-mortem before a frontier finish: the goal is a pipeline that stops needing the finish, not only the package delivered.
 - For repeated failure, explicitly compare attempts and prevent an identical command/prompt strategy loop.
 
 Deadline extensions must be recorded, justified, and authorized; do not silently reset the clock to hide overrun.
@@ -557,21 +564,21 @@ Example, following Trailblazer's direct notification to Codex: “From Resonant:
 
 The operator chooses models based on performance **in the role and environment**, not leaderboard score alone. Maintain a capability registry with the operator's assignment decisions, benchmark tasks, context constraints, available RAM/VRAM, median execution time, reviewer pass rate, regression rate, failure categories, and measured local compute costs. Calibration and the PM recommend assignments; only the operator authorizes them. Preserve model versions and prompt templates with results.
 
-**Initial model assignments are already selected.** Retain the operator-screened Spark and Bolt models in roles similar to their current assignments; do not restart their model selection as part of this architecture change. Spark and Bolt are not default owners of the other roles. Use the cheapest adequate existing capability for each responsibility:
+**Model assignments are the operator's and already made.** The initial Spark/Bolt assignments have since been changed by the operator; the table records the deployment as of 2026-11-07 (Trailblazer `config/config.exs`). Do not restart model selection as part of this architecture change, and do not treat any of these models as the default owner of other roles. Use the cheapest adequate existing capability for each responsibility:
 
-| Role | Initial implementation / model assignment |
+| Role | Current deployment / model assignment |
 |---|---|
-| Engineer | Spark-X2.6-4B / `spark-x2.6-4b:q8-dspark`: local coding and implementation. |
-| Local PM support | Nemotron-3.5-Bolt-E4B / `nemotron-3.5-bolt-e4b:q4`: prioritization, task selection, and bounded routing decisions. This does not establish capability for unrestricted decomposition or architectural planning. |
+| Engineer | `lucet-coder-4b-omega` Q4_K_M (Spark-X2.6-4B code fine-tune; operator pick 2026-11-06, replacing Spark Q8): local coding, whole-file text answers, **thinking off** (see below). |
+| Local PM support | `hive-conductor-1.7b` (LFM3-1.7B role fine-tune; replaced Bolt/LFM2.5-24B as planner after a 5/6 vs 0/6 probe): prioritization, task selection, and bounded routing decisions. This does not establish capability for unrestricted decomposition or architectural planning. |
 | Analyst | Scout retrieval followed by Ranger analysis with its existing LFM3-1.7B / `lfm3-1.7b:q8` assignment when interpretation is needed. This is not an automatic reviewer assignment. |
 | Designer / contract author | Frontier through `HostPlugin` initially; approved contracts can be imported for offline execution. Local authoring requires separate qualification and an operator assignment decision. |
-| Verifier | Deterministic locked probes are the primary gate, plus an operator-assigned reviewer model different from the attempt's Engineer (§8.1). Candidates include LFM3-series decision models and LFM2.5-24B-A2B; the operator selects the specific model using qualification evidence and measured switching cost. The reviewer ADR remains open (§16); frontier review requires explicit authorization through `HostPlugin`. |
+| Verifier | Deterministic locked probes are the primary gate, plus an operator-assigned reviewer model different from the attempt's Engineer (§8.1). Currently deployed: `lfm2.5-24b-a2b:qad-review` (verdict read after its last `</think>`; it caught a half-done change the probes passed, 2026-11-07). The reviewer ADR formally remains open (§16); frontier review requires explicit authorization through `HostPlugin`. |
 | Diagnostician | Deterministic failure classification first. Use a model only for escalation; the operator's model assignment remains an open ADR. |
 | Integrator | Deterministic Git coordination and regression gates, with no default model. Conflicts requiring code changes create bounded Engineer work and require renewed verification. |
 
-Carry forward the existing screening evidence and preserve the current quantization, draft-model, runtime, sampling, and resource settings in versioned deployment records. Trailblazer's `config.ex`, `docs/design.md` §7.2, and `docs/local-planner.md` identify the Spark/Bolt baseline; verify configuration provenance during discovery without starting a new audition for those roles. Validate the new adapters and end-to-end integration against this baseline. Role-specific calibration may support a proposal to widen Spark/Bolt scope; only the operator authorizes that change. Unassigned responsibilities use deterministic tooling where adequate; model-backed work waits for an operator-approved local assignment or explicitly authorized frontier assistance. Do not silently expand an existing model's role or violate local-only operation to fill a gap. A demonstrated capability gap, measured regression, or material deployment change can justify recommending a replacement; the operator decides. Frontier-led planning and final human acceptance retain their existing boundaries.
+Carry forward the existing screening evidence and preserve the current quantization, draft-model, runtime, sampling, **served chat template and template arguments**, and resource settings in versioned deployment records. The template is part of a model's identity: lucet served with its base model's template was told *"the system is invoked with `thinking_effort=high`"* and answered every retry with that as a tool call until thinking was turned off (2026-11-07); qualify a model with the exact template and arguments it will run with. Trailblazer's `config/config.exs`, `docs/design.md` §7.2, and `docs/local-planner.md` identify the deployed baseline; verify configuration provenance during discovery without starting a new audition for those roles. Validate the new adapters and end-to-end integration against this baseline. Role-specific calibration may support a proposal to widen Spark/Bolt scope; only the operator authorizes that change. Unassigned responsibilities use deterministic tooling where adequate; model-backed work waits for an operator-approved local assignment or explicitly authorized frontier assistance. Do not silently expand an existing model's role or violate local-only operation to fill a gap. A demonstrated capability gap, measured regression, or material deployment change can justify recommending a replacement; the operator decides. Frontier-led planning and final human acceptance retain their existing boundaries.
 
-Measured Spark prompt/edit-harness lessons and the final controlled trial are recorded in [the2026-11-04 field note](docs/notes/2026-11-04-spark-harness-lessons.md). This evidence does not itself authorize new model assignments or implementation.
+Measured Spark prompt/edit-harness lessons and the final controlled trial are recorded in [the2026-11-04 field note](docs/notes/2026-11-04-spark-harness-lessons.md); the first unattended night of the dispatch cap and post-mortem rule (0 of 5 packages landed autonomously, 20 harness fixes, failures moving from format to logic) in [the2026-11-07 note](docs/notes/2026-11-07-overnight-dispatch-lessons.md). This evidence does not itself authorize new model assignments or implementation.
 
 Key outcome metrics:
 
@@ -579,6 +586,7 @@ Key outcome metrics:
 - First-pass verification rate and regression frequency;
 - Median attempts/time per completed work package;
 - Percentage of time spent in non-progress retries;
+- Each failure's post-mortem class (package too large, under-specified, model, harness) — and whether a harness fix stopped that class recurring. Until harness failures stop dominating, model quality cannot be read from outcomes;
 - Rate of missed/stale change notifications caught by reconciliation;
 - Unplanned human/frontier escalations and approval latency;
 - UAT defects and traceability completeness;
@@ -675,33 +683,7 @@ Implement these as automated integration tests where practical, plus a clearly d
 
 ## 14. Suggested Repository Layout
 
-Use the repository structure best suited to the actual codebase and Elixir version, but maintain these conceptual boundaries:
-
-```text
-resonant/
-  apps/ or lib/resonant/
-    core/             # domain entities, contracts, state machine, policies
-    delivery/         # charter, WBS, PM exceptions, scheduling, risk
-    execution/        # leases, worker supervision, timeouts, worktrees
-    evidence/         # Git reconciliation, test receipts, event ingestion
-    context/          # indexing and retrieval ports
-    models/           # registry, prompts, worker adapters
-    integration/      # review, merge, release/UAT export
-    interface/        # CLI and optional LiveView Kanban
-  priv/               # migrations, versioned schemas
-  test/               # domain, contracts, integration, failure injection
-  docs/
-    architecture.md
-    decisions/
-    operations.md
-    handoffs/
-  examples/
-    project_spec.md
-    task_contract.yaml
-    uat_packet.md
-```
-
-Do not force an umbrella app for a small codebase, but do not collapse modules into a single enormous agent orchestration module.
+Moved to [docs/design/repository-layout.md](docs/design/repository-layout.md): conceptual module boundaries (core, delivery, execution, evidence, context, models, integration, interface), not a mandated tree.
 
 ---
 
@@ -767,6 +749,8 @@ The implementors should select reasonable technical defaults and record short AD
 | C: Offline work stops pending review | Operator explicitly revises week-one success: offline execution produces a candidate with mechanical checks passed, while independent review remains pending. Integration waits for authorized frontier or human review. Revise the relevant state, verification, success, and test contracts together; a pending candidate is not accepted or integrated. |
 
 No option is selected here. A missing or expired operator decision does not choose a fallback or relax the existing gates.
+
+11. **Local Engineer capability ceiling:** after the 2026-11-07 harness fixes, failures are type and logic errors in small multi-file wiring rather than format. Measure the next packages before concluding; if the 4B Engineer still cannot land a declared-signature, two-file change, present the evidence for the operator's decision (larger coder, different fine-tune, or narrower packages) — never silently widen frontier finishing.
 
 Graph backend and vector strategy are no longer Resonant decisions; they belong to Trailblazer (§6.3).
 
